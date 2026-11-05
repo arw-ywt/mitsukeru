@@ -1,4 +1,5 @@
 /target
+/test_result
 /pkg
 **/*.rs.bk
 .DS_Store

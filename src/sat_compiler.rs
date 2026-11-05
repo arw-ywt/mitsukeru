@@ -178,7 +178,7 @@ impl SatCompiler {
                 .map(|(idx, it)| (item_vars[idx], it.weights.get(dim).copied().unwrap_or(0)))
                 .collect();
 
-            let sum_bits = Self::build_linear_sum(&mut builder, &dim_weights, &format!("cap_{dim}"));
+            let sum_bits = Self::build_linear_sum_tree(&mut builder, &dim_weights, &format!("cap_{dim}"));
 
             if use_parameterized {
                 let cap_bits = Self::alloc_parameter_bus(&mut builder, cap, &format!("param_cap_{dim}"));
@@ -202,14 +202,14 @@ impl SatCompiler {
         (dimacs, num_vars, num_clauses, builder.var_descriptions)
     }
 
-    fn build_linear_sum(
+    fn build_linear_sum_tree(
         builder: &mut CnfBuilder,
         terms: &[(Literal, u32)],
         prefix: &str,
     ) -> Vec<Literal> {
-        let mut accumulator: Vec<Literal> = vec![builder.false_lit];
+        let mut vectors: Vec<Vec<Literal>> = Vec::new();
 
-        for (i, &(x_i, weight)) in terms.iter().enumerate() {
+        for &(x_i, weight) in terms {
             if weight == 0 {
                 continue;
             }
@@ -224,12 +224,30 @@ impl SatCompiler {
                 }
                 w >>= 1;
             }
-
-            accumulator = builder.add_ripple_carry_adder(&accumulator, &weighted_bits);
-            builder.var_descriptions.push(format!("{}_acc_step_{}", prefix, i));
+            vectors.push(weighted_bits);
         }
 
-        accumulator
+        if vectors.is_empty() {
+            return vec![builder.false_lit];
+        }
+
+        let mut step = 0;
+        while vectors.len() > 1 {
+            let mut next_vectors = Vec::new();
+            for chunk in vectors.chunks(2) {
+                if chunk.len() == 2 {
+                    let sum_res = builder.add_ripple_carry_adder(&chunk[0], &chunk[1]);
+                    builder.var_descriptions.push(format!("{}_tree_step_{}_merge", prefix, step));
+                    next_vectors.push(sum_res);
+                } else {
+                    next_vectors.push(chunk[0].clone());
+                }
+            }
+            vectors = next_vectors;
+            step += 1;
+        }
+
+        vectors.into_iter().next().unwrap_or_else(|| vec![builder.false_lit])
     }
 
     fn to_constant_bits(builder: &CnfBuilder, mut val: u32) -> Vec<Literal> {

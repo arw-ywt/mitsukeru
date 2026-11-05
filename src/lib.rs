@@ -238,3 +238,6 @@ mod tests {
         }
     }
 }
+
+pub use schemars;
+pub use serde_json;

@@ -18,21 +18,19 @@ serde_json = "1.0"
 serde-wasm-bindgen = "0.6"
 schemars = "0.8"
 web-time = "1.1"
-criterion = { version = "0.5", features = ["html_reports"] }
 
 [[bench]]
 name = "solver_bench"
 harness = false
 
-[profile.release]
-opt-level = 3
-lto = "fat"
-codegen-units = 1
-panic = "abort"
+[dev-dependencies]
+criterion = { version = "0.5", default-features = false, features = ["html_reports"] }
 
-[profile.test]
-opt-level = 0
+[profile.release]
+opt-level = 's'
+lto = "thin"
 panic = "abort"
+codegen-units = 1
 
 [profile.bench]
 panic = "abort"

@@ -52,11 +52,9 @@ Measurements were performed using [Criterion.rs](https://github.com/bheisler/cri
    - The official specification (`schemas/v1/mitsukeru-schema.json`) is tied directly to the Rust data model via automated continuous integration.
    - Tests automatically fail if internal structs are modified without updating the published schema.
 
-3. Explanatory Infeasibility Analysis
-   - In addition to solving feasible instances, the engine traverses dependency graphs via BFS to detect:
-     - Logical prerequisite cycles and root conflicts ($A \to B \to C \text{ conflicts with } A$).
-     - Multi-item bundle capacity overflows.
-   - Outputs human-readable diagnostic messages instead of uninformative `Infeasible` error codes.
+3. Structured & Explainable Infeasibility Analysis
+   - In addition to solving feasible instances, the engine traverses dependency graphs via BFS to detect logical chain conflicts and capacity overflows.
+   - Instead of opaque error codes, it returns machine-readable structured reports (`ConflictReport`, containing `root_id`, `path_ids`, and `bundle_ids`) alongside human-readable messages, enabling UI highlights (e.g., auto-highlighting conflicting items in red).
 
 4. SAT-Reduction Cross Validation
    - Contains a built-in Tseitin/Adder-Tree compiler that reduces the knapsack problem directly into DIMACS 3-SAT format.
@@ -102,8 +100,6 @@ You can compile `mitsukeru` to WebAssembly using `wasm-pack`:
 wasm-pack build --target web --release
 ```
 
-
-
 ## Quickstart
 
 ### A. Basic Usage in Rust
@@ -138,20 +134,20 @@ fn main() {
                 solution.execution_time_ms, solution.explored_nodes);
         }
         Err(OptimizeError::Infeasible(report)) => {
-            // Explains why it could not be solved
             eprintln!("Configuration is infeasible!");
             for conflict in report.logical_chain_conflicts {
-                eprintln!(" - Logical Conflict: {}", conflict);
+                eprintln!(" - Conflict at item #{}: {} (Path IDs: {:?})", 
+                    conflict.root_id, conflict.message, conflict.path_ids);
             }
-            for overflow in report.capacity_conflicts {
-                eprintln!(" - Capacity Overflow: {}", overflow);
+            for overflow in report.capacity_conflicted { // capacity_conflicts
+                eprintln!(" - Capacity overflow on dim {} by items: {:?}", 
+                    overflow.dimension + 1, overflow.bundle_ids);
             }
         }
         Err(e) => eprintln!("Error: {}", e),
     }
 }
 ```
-
 
 
 ### B. Usage in TypeScript / Browser (Wasm)
@@ -176,15 +172,15 @@ async function run() {
     console.log("Max Score:", solution.best_value);
     console.log("Selected IDs:", solution.selected_item_ids);
   } catch (error) {
-    // When infeasible, returns the ConflictReport object
-    console.error("Selection failed:", error.logical_chain_conflicts);
-  }
+    // When infeasible, returns the structured ConflictReport object
+    // error.logical_chain_conflicts[0].path_ids can be used to highlight UI elements
+    console.error("Selection failed. Conflicting path IDs:", 
+      error.logical_chain_conflicts.map(c => c.path_ids)
+    );
 }
 
 run();
 ```
-
-
 
 ## Editor Autocompletion via JSON Schema
 

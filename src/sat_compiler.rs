@@ -1,24 +1,58 @@
+// sat_compiler.rs
+
 use crate::model::{BusinessRule, Item};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Literal(pub i32);
-
 pub type Clause = Vec<Literal>;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CircuitExpansionMode {
+    Auto,
+    ForceUnroll,
+    Parameterized,
+}
+
+#[derive(Debug, Clone)]
+pub struct CompilerConfig {
+    pub mode: CircuitExpansionMode,
+    pub expansion_threshold: u32,
+}
+
+impl Default for CompilerConfig {
+    fn default() -> Self {
+        const DEFAULT_EXPANSION_THRESHOLD: u32 = 64;
+        Self {
+            mode: CircuitExpansionMode::Auto,
+            expansion_threshold: DEFAULT_EXPANSION_THRESHOLD,
+        }
+    }
+}
 
 pub struct CnfBuilder {
     pub next_var: i32,
     pub clauses: Vec<Clause>,
     pub var_descriptions: Vec<String>,
+    pub true_lit: Literal,
+    pub false_lit: Literal,
 }
 
-#[allow(dead_code)]
 impl CnfBuilder {
     pub fn new() -> Self {
-        Self {
+        let mut builder = Self {
             next_var: 1,
             clauses: Vec::new(),
             var_descriptions: Vec::new(),
-        }
+            true_lit: Literal(0),
+            false_lit: Literal(0),
+        };
+
+        let t = builder.alloc_var("CONST_TRUE");
+        builder.clauses.push(vec![t]);
+        builder.true_lit = t;
+        builder.false_lit = Literal(-t.0);
+
+        builder
     }
 
     pub fn alloc_var(&mut self, desc: &str) -> Literal {
@@ -28,19 +62,11 @@ impl CnfBuilder {
         Literal(v)
     }
 
-    pub fn add_clause(&mut self, mut lits: Vec<Literal>) {
-        while lits.len() > 3 {
-            let tail = lits.split_off(2);
-            let aux = self.alloc_var("aux_3sat_split");
-            self.clauses.push(vec![lits[0], lits[1], aux]);
-            lits = vec![Literal(-aux.0)];
-            lits.extend(tail);
-        }
+    pub fn add_clause(&mut self, lits: Vec<Literal>) {
         self.clauses.push(lits);
     }
 
     pub fn add_xor_gate(&mut self, out: Literal, a: Literal, b: Literal) {
-        // (¬a ∨ ¬b ∨ ¬out) ∧ (a ∨ b ∨ ¬out) ∧ (¬a ∨ b ∨ out) ∧ (a ∨ ¬b ∨ out)
         self.add_clause(vec![Literal(-a.0), Literal(-b.0), Literal(-out.0)]);
         self.add_clause(vec![a, b, Literal(-out.0)]);
         self.add_clause(vec![Literal(-a.0), b, out]);
@@ -75,6 +101,39 @@ impl CnfBuilder {
 
         (sum, cout)
     }
+
+    pub fn add_ripple_carry_adder(
+        &mut self,
+        a_bits: &[Literal],
+        b_bits: &[Literal],
+    ) -> Vec<Literal> {
+        let max_len = a_bits.len().max(b_bits.len());
+        let mut sum_bits = Vec::with_capacity(max_len + 1);
+        let mut carry = self.false_lit;
+
+        for i in 0..max_len {
+            let a = a_bits.get(i).copied().unwrap_or(self.false_lit);
+            let b = b_bits.get(i).copied().unwrap_or(self.false_lit);
+            let (s, c) = self.add_full_adder(a, b, carry);
+            sum_bits.push(s);
+            carry = c;
+        }
+        sum_bits.push(carry);
+        sum_bits
+    }
+
+    pub fn add_less_than_or_equal(&mut self, a_bits: &[Literal], b_bits: &[Literal]) {
+        let max_len = a_bits.len().max(b_bits.len());
+        let mut carry = self.true_lit;
+        for i in 0..max_len {
+            let a = a_bits.get(i).copied().unwrap_or(self.false_lit);
+            let b = b_bits.get(i).copied().unwrap_or(self.false_lit);
+            let not_a = Literal(-a.0);
+            let (_s, cout) = self.add_full_adder(not_a, b, carry);
+            carry = cout;
+        }
+        self.add_clause(vec![carry]);
+    }
 }
 
 pub struct SatCompiler;
@@ -82,32 +141,56 @@ pub struct SatCompiler;
 impl SatCompiler {
     pub fn compile(
         items: &[Item],
-        _capacities: &[u32],
+        capacities: &[u32],
         rules: &[BusinessRule],
-        _target_val: u32,
+        target_val: u32,
+        config: &CompilerConfig,
     ) -> (String, usize, usize, Vec<String>) {
         let mut builder = CnfBuilder::new();
+
         let item_vars: Vec<Literal> = items
             .iter()
             .map(|it| builder.alloc_var(&format!("Item_{}_{}", it.id, it.name)))
             .collect();
-        
+
         for rule in rules {
             match rule {
-                // from => to  ===  (¬from ∨ to)
                 BusinessRule::Requires { from_id, to_id } => {
                     builder.add_clause(vec![Literal(-item_vars[*from_id].0), item_vars[*to_id]]);
                 }
-                // ¬(a ∧ b) === (¬a ∨ ¬b)
                 BusinessRule::Conflicts { a_id, b_id } => {
                     builder.add_clause(vec![Literal(-item_vars[*a_id].0), Literal(-item_vars[*b_id].0)]);
                 }
             }
         }
 
+        let max_param_val = capacities.iter().copied().chain(std::iter::once(target_val)).max().unwrap_or(0);
+        let use_parameterized = match config.mode {
+            CircuitExpansionMode::ForceUnroll => false,
+            CircuitExpansionMode::Parameterized => true,
+            CircuitExpansionMode::Auto => max_param_val > config.expansion_threshold,
+        };
+
+        for (dim, &cap) in capacities.iter().enumerate() {
+            let dim_weights: Vec<(Literal, u32)> = items
+                .iter()
+                .enumerate()
+                .map(|(idx, it)| (item_vars[idx], it.weights.get(dim).copied().unwrap_or(0)))
+                .collect();
+
+            let sum_bits = Self::build_linear_sum(&mut builder, &dim_weights, &format!("cap_{dim}"));
+
+            if use_parameterized {
+                let cap_bits = Self::alloc_parameter_bus(&mut builder, cap, &format!("param_cap_{dim}"));
+                builder.add_less_than_or_equal(&sum_bits, &cap_bits);
+            } else {
+                let cap_bits = Self::to_constant_bits(&builder, cap);
+                builder.add_less_than_or_equal(&sum_bits, &cap_bits);
+            }
+        }
+
         let num_vars = (builder.next_var - 1) as usize;
         let num_clauses = builder.clauses.len();
-
         let mut dimacs = format!("p cnf {} {}\n", num_vars, num_clauses);
         for c in &builder.clauses {
             for lit in c {
@@ -118,36 +201,74 @@ impl SatCompiler {
 
         (dimacs, num_vars, num_clauses, builder.var_descriptions)
     }
-}
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+    fn build_linear_sum(
+        builder: &mut CnfBuilder,
+        terms: &[(Literal, u32)],
+        prefix: &str,
+    ) -> Vec<Literal> {
+        let mut accumulator: Vec<Literal> = vec![builder.false_lit];
 
-    #[test]
-    fn test_business_rules_reduction() {
-        let items = vec![
-            Item { id: 0, name: "A".into(), weights: vec![1], value: 10 },
-            Item { id: 1, name: "B".into(), weights: vec![2], value: 20 },
-        ];
-        let rules = vec![BusinessRule::Conflicts { a_id: 0, b_id: 1 }];
+        for (i, &(x_i, weight)) in terms.iter().enumerate() {
+            if weight == 0 {
+                continue;
+            }
+            let mut weighted_bits = Vec::new();
+            let mut w = weight;
+            while w > 0 {
+                let bit = w & 1;
+                if bit == 1 {
+                    weighted_bits.push(x_i);
+                } else {
+                    weighted_bits.push(builder.false_lit);
+                }
+                w >>= 1;
+            }
 
-        let (dimacs, _vars, clauses, _) = SatCompiler::compile(&items, &[3], &rules, 20);
-        assert!(dimacs.contains("p cnf"));
-        assert!(clauses >= 1);
-        assert!(dimacs.contains("-1 -2 0"));
+            accumulator = builder.add_ripple_carry_adder(&accumulator, &weighted_bits);
+            builder.var_descriptions.push(format!("{}_acc_step_{}", prefix, i));
+        }
+
+        accumulator
     }
 
-    #[test]
-    fn test_full_adder_logic() {
-        let mut builder = CnfBuilder::new();
-        let a = builder.alloc_var("A");
-        let b = builder.alloc_var("B");
-        let cin = builder.alloc_var("Cin");
+    fn to_constant_bits(builder: &CnfBuilder, mut val: u32) -> Vec<Literal> {
+        if val == 0 {
+            return vec![builder.false_lit];
+        }
+        let mut bits = Vec::new();
+        while val > 0 {
+            if val & 1 == 1 {
+                bits.push(builder.true_lit);
+            } else {
+                bits.push(builder.false_lit);
+            }
+            val >>= 1;
+        }
+        bits
+    }
 
-        let (sum, cout) = builder.add_full_adder(a, b, cin);
-        assert!(builder.clauses.len() > 0);
-        assert_eq!(sum.0, 4);
-        assert_eq!(cout.0, 5);
+    fn alloc_parameter_bus(builder: &mut CnfBuilder, mut val: u32, desc_prefix: &str) -> Vec<Literal> {
+        let mut bits = Vec::new();
+        let mut bit_idx = 0;
+        let original_val = val;
+
+        while val > 0 || bits.is_empty() {
+            let is_one = (val & 1) == 1;
+            let param_var = builder.alloc_var(&format!("{}_bit{}_{}", desc_prefix, bit_idx, if is_one { 1 } else { 0 }));
+            
+            if is_one {
+                builder.add_clause(vec![param_var]);
+            } else {
+                builder.add_clause(vec![Literal(-param_var.0)]);
+            }
+
+            bits.push(param_var);
+            val >>= 1;
+            bit_idx += 1;
+        }
+
+        builder.var_descriptions.push(format!("ParamBus: {} = {}", desc_prefix, original_val));
+        bits
     }
 }

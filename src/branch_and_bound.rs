@@ -1,3 +1,5 @@
+// branch_and_bound.rs
+
 use crate::model::{BusinessRule, Item};
 
 pub struct BranchAndBoundSolver<'a> {

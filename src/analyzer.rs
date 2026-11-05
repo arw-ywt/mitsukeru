@@ -1,3 +1,5 @@
+// analyzer.rs
+
 use crate::model::{BusinessRule, ConflictReport, Item};
 use std::collections::{HashSet, VecDeque};
 
@@ -81,7 +83,7 @@ impl<'a> InfeasibilityAnalyzer<'a> {
 
                             logical_chain_conflicts.push(format!(
                                 "Chain Conflict: [{}] requires '{}', but it conflicts with root '{}' ('{}' cannot be selected)",
-                                path_names.join(" ➔ "),
+                                path_names.join(" -> "),
                                 self.items[next].name,
                                 self.items[root].name,
                                 self.items[root].name

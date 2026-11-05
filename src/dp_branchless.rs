@@ -4,7 +4,6 @@ pub struct Flat2dDpSolver {
     cap1: usize,
     cap2: usize,
     table: Vec<u32>,
-    // どのステップで更新が起きたかを記録するフラットバッファ
     decision_history: Vec<bool>,
 }
 
@@ -26,13 +25,11 @@ impl Flat2dDpSolver {
         w1 * (self.cap2 + 1) + w2
     }
 
-    /// 最適解のスコアと、採択されたアイテムIDのリストを返す
     pub fn solve(&mut self, items: &[Item]) -> (u32, Vec<usize>) {
         self.table.fill(0);
         let stride = self.cap2 + 1;
         let area = (self.cap1 + 1) * stride;
         
-        // 履歴バッファの確保 (アイテム数 × グリッドサイズ)
         self.decision_history.resize(items.len() * area, false);
         self.decision_history.fill(false);
 
@@ -63,7 +60,6 @@ impl Flat2dDpSolver {
                         let next_candidate = (candidate_val * can_fit) | (current_val * (1 - can_fit));
                         if next_candidate > current_val {
                             *self.table.get_unchecked_mut(curr_idx) = next_candidate;
-                            // このアイテムを採用したことを記録
                             *self.decision_history.get_unchecked_mut(history_offset + curr_idx) = true;
                         }
                     }
@@ -72,8 +68,6 @@ impl Flat2dDpSolver {
         }
 
         let best_value = self.table[self.get_index(self.cap1, self.cap2)];
-
-        // --- バックトラック（逆順探索で採択アイテムを特定） ---
         let mut selected_ids = Vec::new();
         let mut cur_w1 = self.cap1;
         let mut cur_w2 = self.cap2;

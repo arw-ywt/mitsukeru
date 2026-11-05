@@ -3,8 +3,8 @@ use crate::model::{BusinessRule, Item};
 pub struct BranchAndBoundSolver<'a> {
     items: &'a [Item],
     capacities: &'a [u32],
-    conflicts: Vec<u64>, // 排他マスク (各アイテムと両立不可なビット集合)
-    requires: Vec<u64>,  // 依存マスク (各アイテムの採択に必要なビット集合)
+    conflicts: Vec<u64>,
+    requires: Vec<u64>,
     best_value: u32,
     best_mask: u64,
     pub explored_nodes: u64,
@@ -65,7 +65,6 @@ impl<'a> BranchAndBoundSolver<'a> {
     fn dfs(&mut self, idx: usize, current_mask: u64, current_val: u32, current_weights: &[u32]) {
         self.explored_nodes += 1;
 
-        // 残り全アイテムを取っても暫定ベストを超えないなら即枝刈り（Upper Bound 刈り）
         let mut remaining_val = 0;
         for i in idx..self.items.len() {
             remaining_val += self.items[i].value;
@@ -74,14 +73,12 @@ impl<'a> BranchAndBoundSolver<'a> {
             return;
         }
 
-        // 葉ノード（全アイテムの採否決定）
         if idx == self.items.len() {
-            // 依存ルールの最終検証
             for i in 0..self.items.len() {
                 if (current_mask & (1u64 << i)) != 0 {
                     let req = self.requires[i];
                     if (current_mask & req) != req {
-                        return; // 必要なアイテムが欠けているため棄却
+                        return;
                     }
                 }
             }
@@ -96,7 +93,6 @@ impl<'a> BranchAndBoundSolver<'a> {
         let item = &self.items[idx];
         let item_bit = 1u64 << idx;
 
-        // 分岐 1: アイテム idx を「採用する」
         let can_conflict = (current_mask & self.conflicts[idx]) == 0;
         let mut can_fit = true;
         let mut next_weights = current_weights.to_vec();
@@ -114,7 +110,6 @@ impl<'a> BranchAndBoundSolver<'a> {
             self.dfs(idx + 1, current_mask | item_bit, current_val + item.value, &next_weights);
         }
 
-        // 分岐 2: アイテム idx を「採用しない」
         self.dfs(idx + 1, current_mask, current_val, current_weights);
     }
 }
@@ -130,13 +125,11 @@ mod tests {
             Item { id: 1, name: "B".into(), weights: vec![10, 10], value: 60 },
         ];
         let capacities = vec![20, 20];
-        // A と B は排他
         let rules = vec![BusinessRule::Conflicts { a_id: 0, b_id: 1 }];
 
         let mut solver = BranchAndBoundSolver::new(&items, &capacities, &rules);
         let (val, selected, _) = solver.solve();
 
-        // 両方なら 110 だが、排他なので B(60) のみが選ばれるべき
         assert_eq!(val, 60);
         assert_eq!(selected, vec![1]);
     }

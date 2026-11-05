@@ -31,7 +31,6 @@ impl<'a> InfeasibilityAnalyzer<'a> {
         let mut adj_requires = vec![Vec::new(); n];
         let mut conflicts = vec![HashSet::new(); n];
 
-        // グラフの構築
         for rule in self.rules {
             match rule {
                 BusinessRule::Requires { from_id, to_id } => {
@@ -51,7 +50,6 @@ impl<'a> InfeasibilityAnalyzer<'a> {
         let mut logical_chain_conflicts = Vec::new();
         let mut capacity_conflicts = Vec::new();
 
-        // 1. 各アイテムを起点とした「依存連鎖の追跡」と「数値パッケージ検査」
         for root in 0..n {
             let mut visited = HashSet::new();
             let mut queue = VecDeque::new();
@@ -67,9 +65,7 @@ impl<'a> InfeasibilityAnalyzer<'a> {
                         path_parent[next] = Some(curr);
                         queue.push_back(next);
 
-                        // 連鎖の先で、起点 root と排他関係にあるものを踏んだか？
                         if conflicts[root].contains(&next) {
-                            // 経路パスの復元
                             let mut path = vec![next];
                             let mut p = Some(curr);
                             while let Some(node) = p {
@@ -84,7 +80,7 @@ impl<'a> InfeasibilityAnalyzer<'a> {
                                 .collect();
 
                             logical_chain_conflicts.push(format!(
-                                "連鎖矛盾: 「{}」が必須連鎖しますが、終点「{}」は起点「{}」と排他です（{} は採択不能）",
+                                "Chain Conflict: [{}] requires '{}', but it conflicts with root '{}' ('{}' cannot be selected)",
                                 path_names.join(" ➔ "),
                                 self.items[next].name,
                                 self.items[root].name,
@@ -95,7 +91,6 @@ impl<'a> InfeasibilityAnalyzer<'a> {
                 }
             }
 
-            // 数値検査: root を積むと同時に道連れになる全アイテムの合計重量
             let num_dims = self.capacities.len();
             let mut bundle_weights = vec![0u32; num_dims];
             for &req_id in &visited {
@@ -108,7 +103,7 @@ impl<'a> InfeasibilityAnalyzer<'a> {
                 if bundle_weights[d] > self.capacities[d] {
                     if visited.len() == 1 {
                         capacity_conflicts.push(format!(
-                            "単体容量超過: 「{}」の制約{}消費量 ({}) が上限 ({}) を超過しています",
+                            "Single Capacity Overflow: '{}' consumes {} for constraint {}, exceeding limit ({})",
                             self.items[root].name,
                             d + 1,
                             bundle_weights[d],
@@ -116,7 +111,7 @@ impl<'a> InfeasibilityAnalyzer<'a> {
                         ));
                     } else {
                         capacity_conflicts.push(format!(
-                            "パッケージ容量超過: 「{}」を採用すると必須連鎖する計{}件の合計制約{} ({}) が上限 ({}) を突破します",
+                            "Bundle Capacity Overflow: Selecting '{}' requires {} items with total constraint {} consumption ({}), exceeding limit ({})",
                             self.items[root].name,
                             visited.len(),
                             d + 1,
@@ -129,12 +124,11 @@ impl<'a> InfeasibilityAnalyzer<'a> {
             }
         }
 
-        // 2. 目標満足度に対する矛盾
         let mut target_conflict = None;
         if let Some(target) = self.target_value {
             if self.mip_best_value < target {
                 target_conflict = Some(format!(
-                    "目標未達: 目標満足度 ({} pt) に対して、全制約を守った最大達成可能スコアは ({} pt) です",
+                    "Unachievable Target: Target value ({} pt) cannot be reached; maximum achievable score under constraints is ({} pt)",
                     target, self.mip_best_value
                 ));
             }
@@ -164,7 +158,6 @@ mod tests {
             Item { id: 1, name: "B".into(), weights: vec![10], value: 10 },
             Item { id: 2, name: "C".into(), weights: vec![10], value: 10 },
         ];
-        // A -> B -> C かつ A ⊥ C
         let rules = vec![
             BusinessRule::Requires { from_id: 0, to_id: 1 },
             BusinessRule::Requires { from_id: 1, to_id: 2 },
@@ -175,6 +168,6 @@ mod tests {
         let report = analyzer.analyze();
         assert!(!report.is_feasible);
         assert_eq!(report.logical_chain_conflicts.len(), 1);
-        assert!(report.logical_chain_conflicts[0].contains("A ➔ B ➔ C"));
+        assert!(report.logical_chain_conflicts[0].contains("A -> B -> C"));
     }
 }

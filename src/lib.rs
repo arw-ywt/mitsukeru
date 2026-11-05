@@ -22,9 +22,6 @@ pub fn solve_knapsack_branchless_dp(val: JsValue) -> Result<JsValue, JsValue> {
     let c1 = input.capacities[0] as usize;
     let c2 = input.capacities[1] as usize;
     let n = input.items.len();
-
-    // 実際にヒープに確保する総バイト数を計算
-    // テーブル: (c1+1)*(c2+1)*4 bytes, 履歴: n*(c1+1)*(c2+1)*1 byte
     let grid_size = (c1 + 1) * (c2 + 1);
     let total_bytes = (grid_size * 4) + (n * grid_size * 1);
     let memory_mb = total_bytes as f64 / (1024.0 * 1024.0);

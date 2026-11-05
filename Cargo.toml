@@ -5,6 +5,8 @@ edition = "2024"
 description = "A multi-dimensional knapsack solver and 3-SAT formal verification engine in WebAssembly"
 license = "MIT"
 repository = "https://github.com/arw-ywt/knapsack-sat-core"
+keywords = ["knapsack", "optimization", "sat", "solver", "wasm"]
+categories = ["algorithms", "science", "wasm"]
 
 [lib]
 crate-type = ["cdylib", "rlib"]

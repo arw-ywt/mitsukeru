@@ -80,6 +80,54 @@ pub enum OptimizeError {
     InvalidInput(String),
 }
 
+
+/// # Conflict Analysis Report
+/// Structured diagnostic report explaining why a problem instance is infeasible.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct ConflictReport {
+    /// True if the configuration satisfies all constraints.
+    pub is_feasible: bool,
+    /// Detailed list of prerequisite and mutual exclusion chain conflicts.
+    pub logical_chain_conflicts: Vec<ChainConflict>,
+    /// Detailed list of resource capacity overflows.
+    pub capacity_conflicts: Vec<CapacityConflict>,
+    /// Target value unreachability conflict, if a target was specified.
+    pub target_conflict: Option<TargetConflict>,
+}
+
+/// # Logical Chain Conflict Details
+/// Identifies a conflict where a dependency chain leads to a mutually exclusive item.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct ChainConflict {
+    /// The root item being evaluated.
+    pub root_id: usize,
+    /// The prerequisite item that conflicts with the root.
+    pub conflicting_id: usize,
+    /// Ordered list of item IDs forming the requirement path (e.g., [A, B, C]).
+    pub path_ids: Vec<usize>,
+    /// Human-readable explanation of the chain conflict.
+    pub message: String,
+}
+
+/// # Capacity Overflow Conflict Details
+/// Identifies which resource limit is exceeded and by which items.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct CapacityConflict {
+    /// The root item triggering this capacity check.
+    pub root_id: usize,
+    /// The resource dimension index (0-based) that overflowed.
+    pub dimension: usize,
+    /// Maximum allowed capacity limit.
+    pub capacity_limit: u32,
+    /// Actual resource amount consumed.
+    pub consumed_weight: u32,
+    /// List of item IDs included in this bundle.
+    pub bundle_ids: Vec<usize>,
+    /// Human-readable explanation of the overflow.
+    pub message: String,
+}
+
+
 impl std::fmt::Display for OptimizeError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -126,10 +174,15 @@ pub struct MipResult {
     pub explored_nodes: u64,
 }
 
+
+/// # Target Value Conflict Details
+/// Identifies when a target objective score cannot be achieved.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct ConflictReport {
-    pub is_feasible: bool,
-    pub logical_chain_conflicts: Vec<String>,
-    pub capacity_conflicts: Vec<String>,
-    pub target_conflict: Option<String>,
+pub struct TargetConflict {
+    /// The requested target value.
+    pub target_value: u32,
+    /// The maximum achievable score under constraints.
+    pub achievable_value: u32,
+    /// Human-readable explanation.
+    pub message: String,
 }

@@ -1,6 +1,8 @@
 // analyzer.rs
 
-use crate::model::{BusinessRule, ConflictReport, Item};
+use crate::model::{
+    BusinessRule, CapacityConflict, ChainConflict, ConflictReport, Item, TargetConflict,
+};
 use std::collections::{HashSet, VecDeque};
 
 pub struct InfeasibilityAnalyzer<'a> {
@@ -81,13 +83,19 @@ impl<'a> InfeasibilityAnalyzer<'a> {
                                 .map(|&id| self.items[id].name.clone())
                                 .collect();
 
-                            logical_chain_conflicts.push(format!(
-                                "Chain Conflict: [{}] requires '{}', but it conflicts with root '{}' ('{}' cannot be selected)",
+                            let msg = format!(
+                                "Chain Conflict: [{}] requires '{}', but it conflicts with root '{}'",
                                 path_names.join(" -> "),
                                 self.items[next].name,
-                                self.items[root].name,
                                 self.items[root].name
-                            ));
+                            );
+
+                            logical_chain_conflicts.push(ChainConflict {
+                                root_id: root,
+                                conflicting_id: next,
+                                path_ids: path,
+                                message: msg,
+                            });
                         }
                     }
                 }
@@ -100,27 +108,36 @@ impl<'a> InfeasibilityAnalyzer<'a> {
                     bundle_weights[d] += self.items[req_id].weights.get(d).copied().unwrap_or(0);
                 }
             }
-
+            
             for d in 0..num_dims {
                 if bundle_weights[d] > self.capacities[d] {
-                    if visited.len() == 1 {
-                        capacity_conflicts.push(format!(
+                    let bundle_ids: Vec<usize> = visited.iter().copied().collect();
+                    let msg = match visited.len() {
+                        1 => format!(
                             "Single Capacity Overflow: '{}' consumes {} for constraint {}, exceeding limit ({})",
                             self.items[root].name,
-                            d + 1,
                             bundle_weights[d],
+                            d + 1,
                             self.capacities[d]
-                        ));
-                    } else {
-                        capacity_conflicts.push(format!(
+                        ),
+                        _ => format!(
                             "Bundle Capacity Overflow: Selecting '{}' requires {} items with total constraint {} consumption ({}), exceeding limit ({})",
                             self.items[root].name,
                             visited.len(),
                             d + 1,
                             bundle_weights[d],
                             self.capacities[d]
-                        ));
-                    }
+                        ),
+                    };
+
+                    capacity_conflicts.push(CapacityConflict {
+                        root_id: root,
+                        dimension: d,
+                        capacity_limit: self.capacities[d],
+                        consumed_weight: bundle_weights[d],
+                        bundle_ids,
+                        message: msg,
+                    });
                     break;
                 }
             }
@@ -129,10 +146,15 @@ impl<'a> InfeasibilityAnalyzer<'a> {
         let mut target_conflict = None;
         if let Some(target) = self.target_value {
             if self.mip_best_value < target {
-                target_conflict = Some(format!(
+                let msg = format!(
                     "Unachievable Target: Target value ({} pt) cannot be reached; maximum achievable score under constraints is ({} pt)",
                     target, self.mip_best_value
-                ));
+                );
+                target_conflict = Some(TargetConflict {
+                    target_value: target,
+                    achievable_value: self.mip_best_value,
+                    message: msg,
+                });
             }
         }
 
@@ -170,6 +192,12 @@ mod tests {
         let report = analyzer.analyze();
         assert!(!report.is_feasible);
         assert_eq!(report.logical_chain_conflicts.len(), 1);
-        assert!(report.logical_chain_conflicts[0].contains("A -> B -> C"));
+
+        // IDで型安全に検証可能！
+        let conflict = &report.logical_chain_conflicts[0];
+        assert_eq!(conflict.root_id, 0);
+        assert_eq!(conflict.conflicting_id, 2);
+        assert_eq!(conflict.path_ids, vec![0, 1, 2]);
+        assert!(conflict.message.contains("A -> B -> C"));
     }
 }

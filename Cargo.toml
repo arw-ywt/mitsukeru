@@ -32,3 +32,7 @@ panic = "abort"
 
 [profile.test]
 opt-level = 0
+panic = "abort"
+
+[profile.bench]
+panic = "abort"

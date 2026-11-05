@@ -1,4 +1,4 @@
-use knapsack_sat_core::{
+use mitsukeru::{
     BranchAndBoundSolver, BusinessRule, CompilerConfig, Flat2dDpSolver, InfeasibilityAnalyzer, Item, SatCompiler,
 };
 

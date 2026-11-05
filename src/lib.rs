@@ -7,10 +7,10 @@ pub mod branch_and_bound;
 pub mod analyzer;
 
 pub use model::*;
-pub use dp_branchless::Flat2dDpSolver;
-pub use sat_compiler::{CompilerConfig, SatCompiler};
 pub use branch_and_bound::BranchAndBoundSolver;
 pub use analyzer::InfeasibilityAnalyzer;
+pub use sat_compiler::{CompilerConfig, SatCompiler};
+pub use dp_branchless::Flat2dDpSolver;
 
 use wasm_bindgen::prelude::*;
 use web_time::Instant;
@@ -28,6 +28,48 @@ impl Timer {
 
     fn elapsed_ms(&self) -> f64 {
         self.start.elapsed().as_secs_f64() * 1000.0
+    }
+}
+
+pub struct Optimizer<'a> {
+    input: &'a KnapsackInput,
+}
+
+impl<'a> Optimizer<'a> {
+
+    pub fn new(input: &'a KnapsackInput) -> Self {
+        Self { input }
+    }
+
+    pub fn solve(&self) -> Result<Solution, OptimizeError> {
+        let timer = Timer::start();
+        let mut solver = BranchAndBoundSolver::new(
+            &self.input.items,
+            &self.input.capacities,
+            &self.input.rules,
+        );
+        let (best_value, selected_ids, explored_nodes) = solver.solve();
+        let analyzer = InfeasibilityAnalyzer::new(
+            &self.input.items,
+            &self.input.capacities,
+            &self.input.rules,
+            self.input.target_value,
+            best_value,
+        );
+        let report = analyzer.analyze();
+
+        if !report.is_feasible {
+            return Err(OptimizeError::Infeasible(report));
+        }
+
+        let execution_time_ms = timer.elapsed_ms();
+
+        Ok(Solution {
+            best_value,
+            selected_item_ids: selected_ids,
+            execution_time_ms,
+            explored_nodes,
+        })
     }
 }
 
@@ -106,6 +148,20 @@ pub fn analyze_infeasibility_core(input: &KnapsackInput, mip_best_value: u32) ->
 }
 
 #[wasm_bindgen]
+pub fn optimize(val: JsValue) -> Result<JsValue, JsValue> {
+    let input: KnapsackInput = serde_wasm_bindgen::from_value(val)?;
+    let optimizer = Optimizer::new(&input);
+    match optimizer.solve() {
+        Ok(solution) => Ok(serde_wasm_bindgen::to_value(&solution)?),
+        Err(OptimizeError::Infeasible(report)) => {
+            let err_obj = serde_wasm_bindgen::to_value(&report)?;
+            Err(err_obj)
+        }
+        Err(OptimizeError::InvalidInput(msg)) => Err(JsValue::from_str(&msg)),
+    }
+}
+
+#[wasm_bindgen]
 pub fn solve_knapsack_branchless_dp(val: JsValue) -> Result<JsValue, JsValue> {
     let input: KnapsackInput = serde_wasm_bindgen::from_value(val)?;
     let res = solve_knapsack_branchless_dp_core(&input)
@@ -132,4 +188,53 @@ pub fn analyze_infeasibility(val: JsValue, mip_best_value: u32) -> Result<JsValu
     let input: KnapsackInput = serde_wasm_bindgen::from_value(val)?;
     let res = analyze_infeasibility_core(&input, mip_best_value);
     Ok(serde_wasm_bindgen::to_value(&res)?)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_optimizer_high_level_api() {
+        let input = KnapsackInput {
+            items: vec![
+                Item { id: 0, name: "A".into(), weights: vec![10], value: 100 },
+                Item { id: 1, name: "B".into(), weights: vec![10], value: 200 },
+            ],
+            capacities: vec![15],
+            rules: vec![],
+            target_value: None,
+        };
+
+        let optimizer = Optimizer::new(&input);
+        let solution = optimizer.solve().expect("Should find optimal solution");
+
+        assert_eq!(solution.best_value, 200);
+        assert_eq!(solution.selected_item_ids, vec![1]);
+    }
+
+    #[test]
+    fn test_optimizer_infeasible_conflict() {
+        let input = KnapsackInput {
+            items: vec![
+                Item { id: 0, name: "A".into(), weights: vec![10], value: 100 },
+                Item { id: 1, name: "B".into(), weights: vec![10], value: 200 },
+            ],
+            capacities: vec![50],
+            rules: vec![
+                BusinessRule::Requires { from_id: 0, to_id: 1 },
+                BusinessRule::Conflicts { a_id: 0, b_id: 1 },
+            ],
+            target_value: None,
+        };
+
+        let optimizer = Optimizer::new(&input);
+        match optimizer.solve() {
+            Err(OptimizeError::Infeasible(report)) => {
+                assert!(!report.is_feasible);
+                assert!(!report.logical_chain_conflicts.is_empty());
+            }
+            _ => panic!("Expected infeasible error"),
+        }
+    }
 }

@@ -1,0 +1,24 @@
+[package]
+name = "knapsack-sat-core"
+version = "0.1.0"
+edition = "2024"
+description = "A multi-dimensional knapsack solver and 3-SAT formal verification engine in WebAssembly"
+license = "MIT"
+repository = "https://github.com/arw-ywt/knapsack-sat-core"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+wasm-bindgen = "0.2"
+serde = { version = "1.0", features = ["derive"] }
+serde-wasm-bindgen = "0.6"
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+
+[profile.test]
+opt-level = 2

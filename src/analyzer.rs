@@ -193,7 +193,6 @@ mod tests {
         assert!(!report.is_feasible);
         assert_eq!(report.logical_chain_conflicts.len(), 1);
 
-        // IDで型安全に検証可能！
         let conflict = &report.logical_chain_conflicts[0];
         assert_eq!(conflict.root_id, 0);
         assert_eq!(conflict.conflicting_id, 2);

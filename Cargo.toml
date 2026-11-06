@@ -2,7 +2,7 @@
 name = "mitsukeru"
 version = "0.1.0"
 edition = "2024"
-description = "Lightweight, explainable, sub-millisecond decision and configuration engine for Web and Rust"
+description = "Lightweight, deterministic, and explainable constraint optimization engine written in Pure Rust"
 license = "MIT"
 repository = "https://github.com/arw-ywt/mitsukeru"
 keywords = ["knapsack", "optimization", "sat", "solver", "wasm"]

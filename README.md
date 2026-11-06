@@ -1,16 +1,104 @@
-# mitsukeru
 
-`mitsukeru` is a lightweight, deterministic, and explainable constraint optimization engine written in Pure Rust. 
+<h1 align="center">
+mitsukeru
+</h1>
+
+[![js-standard-style](https://cdn.rawgit.com/feross/standard/master/badge.svg)](https://github.com/feross/standard)
+[![Crates.io Version](https://img.shields.io/crates/v/your-package-name.svg?logo=rust&style=flat-square)](https://crates.io/crates/your-package-name)
+[![Docs.rs](https://img.shields.io/docsrs/your-package-name.svg?logo=rust&style=flat-square)](https://docs.rs/your-package-name)
+[![npm version](https://img.shields.io/npm/v/your-package-name.svg?logo=npm&style=flat-square)](https://www.npmjs.com/package/your-package-name)
+[![npm downloads](https://img.shields.io/npm/dm/your-package-name.svg?logo=npm&style=flat-square)](https://www.npmjs.com/package/your-package-name)
+[![JSON Status](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fapi.example.com%2Fdata.json&query=%24.status&label=API%20Status&style=flat-square)](https://example.com)
+[![JSON Format](https://img.shields.io/badge/data-JSON-informational?logo=json&style=flat-square)](https://www.json.org/)
+![Zero Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)
+[![Benchmark](https://github.com/arw-ywt/リポジトリ名/actions/workflows/benchmark.yml/badge.svg)](https://github.com/arw-ywt/リポジトリ名/actions/workflows/benchmark.yml)
+
+`mitsukeru` is a lightweight, deterministic, and explainable constraint optimization engine written in Pure Rust, designed to ease spec changes and quickly spot conflicting conditions during optimal combination search.
 
 It can be compiled to native Rust code for high-performance backend services or to WebAssembly (Wasm) for client-side browser apps.
 
-## What is mitsukeru?
+- [What you gain](#what-you-gain)
+- [Installation](#installation)
+- [When to use](#)
+- [When NOT to use](#)
+- [Quickstart](#)
+  - [Usage in Browser](#)
+- [](#)
+- [](#)
 
-`mitsukeru` solves multi-dimensional knapsack problems with business rules 
-(item dependencies and mutual exclusions) directly inside your process or browser.
-Unlike general-purpose MILP solvers that require native toolchains and return 
-opaque error codes, `mitsukeru` runs entirely in WebAssembly with sub-millisecond 
-latency and explains *why* a configuration is impossible.
+## What you gain
+
+- Input: JSON
+- Output: structured reports and human-readable messages
+- Very fast
+- Zero dependency
+- Serverless support
+- Open Source
+
+## Installation
+
+```bash
+npm i mitsukeru
+```
+
+## When to use
+
+Want to see it in action first? Try the [Demo](https://your-username.github.io/mitsukeru/) on GitHub Pages.
+
+- Finding optimal combinations based on user-selected options (See Demo)
+- Simplifying conditional logic caused by frequent option or specification changes (See Demo)
+- Running under strict security or offline environments where external servers are unavailable (See Demo)
+
+## When NOT to use
+
+- Massive industrial scheduling (use HiGHS or Google OR-Tools instead etc.)
+- Continuous / Floating-point optimization (use scipy.optimize etc.)
+
+## Quickstart
+
+### Usage in Browser
+
+```typescript
+import init, { optimize } from "./pkg/mitsukeru.js";
+
+async function run() {
+  await init();
+
+  const config = {
+    items: [
+      { id: 0, name: "Basic Plan", weights: [10], value: 50 },
+      { id: 1, name: "Pro Plan",   weights: [25], value: 120 },
+    ],
+    capacities: [20],
+    rules: [],
+  };
+
+  try {
+    const solution = optimize(config);
+    console.log("Max Score:", solution.best_value);
+    console.log("Selected IDs:", solution.selected_item_ids);
+  } catch (error) {
+    // When infeasible, returns the structured ConflictReport object
+    // error.logical_chain_conflicts[0].path_ids can be used to highlight UI elements
+    console.error("Selection failed. Conflicting path IDs:", 
+      error.logical_chain_conflicts.map(c => c.path_ids)
+    );
+}
+
+run();
+```
+
+
+
+<!--
+As applications grow, managing options, prerequisites, and resource limits (like budgets, weights, or slot counts) quickly turns into a maze of fragile `if/else` logic. Every time rules change, existing conditions break.
+
+`mitsukeru` solves this by decoupling your business rules from your UI code. You define your candidates, multi-dimensional capacities, and logical rules (**Requires / Conflicts**) cleanly in JSON. 
+
+Under the hood, it combines high-performance branch-and-bound algorithms with automated conflict diagnosis. Instead of returning opaque errors, it tells you precisely *why* a configuration is broken—allowing you to build bulletproof configuration screens, SaaS plan selectors, and dynamic pricing engines in Rust or WebAssembly (Wasm) with sub-millisecond latency.
+-->
+
+
 
 ## Use Case
 
@@ -25,7 +113,7 @@ latency and explains *why* a configuration is impossible.
 
 
 
-## Benchmark & Performance
+## How to perform
 
 Measurements were performed using [Criterion.rs](https://github.com/bheisler/criterion.rs) with 100 sample iterations on a standard multi-constraint scenario (`Test A`: 14 items, 2 resource dimensions, 5 dependency/conflict rules).
 
@@ -62,13 +150,34 @@ Measurements were performed using [Criterion.rs](https://github.com/bheisler/cri
 
 
 
+## What You Gain
+
+When a user's configuration is invalid or impossible to satisfy, traditional solvers simply return an opaque `Infeasible` error. `mitsukeru` features a built-in graph-based analyzer (`InfeasibilityAnalyzer`) that detects and explains three major classes of configuration conflicts.
+
+### 1. Logical Chain Conflicts (Prerequisite vs. Exclusion)
+Detects when a chain of required dependencies structurally leads to an item that has been explicitly forbidden by a mutual exclusion rule.
+- **Example:** Item $A$ requires Item $B$, and Item $B$ requires Item $C$, but a conflict rule states that $A$ cannot coexist with $C$ ($A \to B \to C$ conflicts with $A$).
+- **Structured Output:** Returns the exact root item ID, conflicting item ID, and the full dependency path (`path_ids: [0, 1, 2]`) for precise UI highlighting (e.g., rendering the conflicting node path in red).
+
+### 2. Bundle Capacity Overflows
+Detects when a selected item—either individually or together with all its mandatory dependencies (a "bundle")—exceeds multi-dimensional resource limits (e.g., total weight, power budget, or slot count).
+- **Example:** Selecting a high-end GPU bundle requires 3 mandatory sub-components, pushing the total power consumption to 550W against a maximum capacity of 500W.
+- **Structured Output:** Identifies the bottleneck dimension index, the allowed limit, the actual consumption, and the exact list of item IDs causing the overflow (`bundle_ids`).
+
+### 3. Unachievable Target Values
+Detects when a requested objective target (e.g., a minimum score or profit threshold) cannot be reached under the given constraints and item pools.
+- **Example:** The user requests a target score of 500 pt, but the maximum mathematically achievable score under current resource caps is 450 pt.
+- **Structured Output:** Returns both the requested target value and the maximum achievable bound.
+
+
+
 ## What You Need
 
 One of the core philosophies of `mitsukeru` is zero system dependencies:
 
-- X No C/C++ compiler required (unlike HiGHS, CBC, or SCIP)
-- X No CMake or native build toolchains
-- X No Python runtime or external solver binaries
+- **NO** C/C++ compiler required (unlike HiGHS, CBC, or SCIP)
+- **NO** CMake or native build toolchains
+- **NO** Python runtime or external solver binaries
 
 #### System Requirements:
 - For Rust projects: Rust 1.70+ (Stable)

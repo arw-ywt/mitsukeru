@@ -1,6 +1,7 @@
 // lib.rs
 
 pub mod model;
+pub mod bitset;
 pub mod dp_branchless;
 pub mod sat_compiler;
 pub mod branch_and_bound;
@@ -8,6 +9,7 @@ pub mod analyzer;
 pub mod heuristics;
 
 pub use model::*;
+pub use bitset::BitSet;
 pub use branch_and_bound::BranchAndBoundSolver;
 pub use analyzer::InfeasibilityAnalyzer;
 pub use sat_compiler::{CompilerConfig, SatCompiler};
@@ -34,46 +36,69 @@ impl Timer {
 }
 
 pub struct Optimizer<'a> {
-    input: &'a KnapsackInput,
+    input: &'a ProblemInput,
+    strategy: SolverStrategy,
 }
 
-impl<'a> Optimizer<'a> {
 
-    pub fn new(input: &'a KnapsackInput) -> Self {
-        Self { input }
+impl<'a> Optimizer<'a> {
+    pub fn new(input: &'a ProblemInput) -> Self {
+        Self { 
+            input,
+            strategy: input.strategy,
+        }
+    }
+
+    /// 探索戦略（Pure, Info, Mixed）を明示的に指定
+    pub fn with_strategy(mut self, strategy: SolverStrategy) -> Self {
+        self.strategy = strategy;
+        self
     }
 
     pub fn solve(&self) -> Result<Solution, OptimizeError> {
         let timer = Timer::start();
         let item_count = self.input.items.len();
+        let rule_count = self.input.rules.len();
 
-        let (best_value, selected_ids, explored_nodes, status) = if item_count < 20 {
-            let mut solver = BranchAndBoundSolver::new(
-                &self.input.items,
-                &self.input.capacities,
-                &self.input.rules,
-            );
-            solver.set_time_limit_ms(2.0);
-            solver.set_max_nodes(100_000);
-            solver.solve()
-        } else {
+        // 実行戦略の確定
+        let (use_ai, strategy_used) = match self.strategy {
+            SolverStrategy::Pure => (false, SolverStrategy::Pure),
+            SolverStrategy::Info => (true, SolverStrategy::Info),
+            SolverStrategy::Mixed => {
+                let ai_recommended = rule_count > 0 
+                    && item_count >= 20 
+                    && (item_count <= 64 || rule_count * 4 >= item_count);
+                if ai_recommended {
+                    (true, SolverStrategy::Info)
+                } else {
+                    (false, SolverStrategy::Pure)
+                }
+            }
+        };
+
+        let mut solver = BranchAndBoundSolver::new(
+            &self.input.items,
+            &self.input.capacities,
+            &self.input.rules,
+        );
+
+        if use_ai {
             let diving = NeuralDivingEngine::predict(
                 &self.input.items,
                 &self.input.capacities,
                 &self.input.rules,
             );
-
-            let mut solver = BranchAndBoundSolver::new(
-                &self.input.items,
-                &self.input.capacities,
-                &self.input.rules,
-            );
-
             solver.set_initial_solution(diving.initial_best_value, &diving.initial_selected_ids);
-            solver.set_time_limit_ms(2.0);
-            solver.set_max_nodes(100_000);
-            solver.solve()
-        };
+        }
+
+        #[cfg(debug_assertions)]
+        solver.set_time_limit_ms(50.0);
+        #[cfg(not(debug_assertions))]
+        solver.set_time_limit_ms(2.0);
+
+        solver.set_max_nodes(100_000);
+
+        let (best_value, selected_ids, explored_nodes, status) = solver.solve();
 
         let analyzer = InfeasibilityAnalyzer::new(
             &self.input.items,
@@ -96,12 +121,13 @@ impl<'a> Optimizer<'a> {
             execution_time_ms,
             explored_nodes,
             status,
+            strategy_used: Some(strategy_used),
             top_candidates: None,
         })
     }
 }
 
-pub fn solve_knapsack_branchless_dp_core(input: &KnapsackInput) -> Result<DpResult, String> {
+pub fn solve_branchless_dp_core(input: &ProblemInput) -> Result<DpResult, String> {
     if input.capacities.len() < 2 {
         return Err("At least 2 capacities required for 2D DP".to_string());
     }
@@ -128,7 +154,7 @@ pub fn solve_knapsack_branchless_dp_core(input: &KnapsackInput) -> Result<DpResu
     })
 }
 
-pub fn compile_to_3sat_core(input: &KnapsackInput) -> SatReductionResult {
+pub fn compile_to_3sat_core(input: &ProblemInput) -> SatReductionResult {
     let target_val = input.target_value.unwrap_or(0);
     let config = CompilerConfig::default();
 
@@ -148,7 +174,7 @@ pub fn compile_to_3sat_core(input: &KnapsackInput) -> SatReductionResult {
     }
 }
 
-pub fn solve_knapsack_branch_and_bound_core(input: &KnapsackInput) -> MipResult {
+pub fn solve_branch_and_bound_core(input: &ProblemInput) -> MipResult {
     let timer = Timer::start();
 
     let mut solver = BranchAndBoundSolver::new(&input.items, &input.capacities, &input.rules);
@@ -169,7 +195,7 @@ pub fn solve_knapsack_branch_and_bound_core(input: &KnapsackInput) -> MipResult 
     }
 }
 
-pub fn analyze_infeasibility_core(input: &KnapsackInput, mip_best_value: u32) -> ConflictReport {
+pub fn analyze_infeasibility_core(input: &ProblemInput, mip_best_value: u32) -> ConflictReport {
     let analyzer = InfeasibilityAnalyzer::new(
         &input.items,
         &input.capacities,
@@ -182,7 +208,7 @@ pub fn analyze_infeasibility_core(input: &KnapsackInput, mip_best_value: u32) ->
 
 #[wasm_bindgen]
 pub fn optimize(val: JsValue) -> Result<JsValue, JsValue> {
-    let input: KnapsackInput = serde_wasm_bindgen::from_value(val)?;
+    let input: ProblemInput = serde_wasm_bindgen::from_value(val)?;
     let optimizer = Optimizer::new(&input);
     match optimizer.solve() {
         Ok(solution) => Ok(serde_wasm_bindgen::to_value(&solution)?),
@@ -195,37 +221,37 @@ pub fn optimize(val: JsValue) -> Result<JsValue, JsValue> {
 }
 
 #[wasm_bindgen]
-pub fn solve_knapsack_branchless_dp(val: JsValue) -> Result<JsValue, JsValue> {
-    let input: KnapsackInput = serde_wasm_bindgen::from_value(val)?;
-    let res = solve_knapsack_branchless_dp_core(&input)
+pub fn solve_branchless_dp(val: JsValue) -> Result<JsValue, JsValue> {
+    let input: ProblemInput = serde_wasm_bindgen::from_value(val)?;
+    let res = solve_branchless_dp_core(&input)
         .map_err(|e| JsValue::from_str(&e))?;
     Ok(serde_wasm_bindgen::to_value(&res)?)
 }
 
 #[wasm_bindgen]
 pub fn compile_to_3sat(val: JsValue) -> Result<JsValue, JsValue> {
-    let input: KnapsackInput = serde_wasm_bindgen::from_value(val)?;
+    let input: ProblemInput = serde_wasm_bindgen::from_value(val)?;
     let res = compile_to_3sat_core(&input);
     Ok(serde_wasm_bindgen::to_value(&res)?)
 }
 
 #[wasm_bindgen]
-pub fn solve_knapsack_branch_and_bound(val: JsValue) -> Result<JsValue, JsValue> {
-    let input: KnapsackInput = serde_wasm_bindgen::from_value(val)?;
-    let res = solve_knapsack_branch_and_bound_core(&input);
+pub fn solve_branch_and_bound(val: JsValue) -> Result<JsValue, JsValue> {
+    let input: ProblemInput = serde_wasm_bindgen::from_value(val)?;
+    let res = solve_branch_and_bound_core(&input);
     Ok(serde_wasm_bindgen::to_value(&res)?)
 }
 
 #[wasm_bindgen]
 pub fn analyze_infeasibility(val: JsValue, mip_best_value: u32) -> Result<JsValue, JsValue> {
-    let input: KnapsackInput = serde_wasm_bindgen::from_value(val)?;
+    let input: ProblemInput = serde_wasm_bindgen::from_value(val)?;
     let res = analyze_infeasibility_core(&input, mip_best_value);
     Ok(serde_wasm_bindgen::to_value(&res)?)
 }
 
 #[wasm_bindgen]
 pub fn predict_heuristics(val: JsValue) -> Result<JsValue, JsValue> {
-    let input: KnapsackInput = serde_wasm_bindgen::from_value(val)?;
+    let input: ProblemInput = serde_wasm_bindgen::from_value(val)?;
     let prediction = NeuralDivingEngine::predict(&input.items, &input.capacities, &input.rules);
     Ok(serde_wasm_bindgen::to_value(&prediction.initial_selected_ids)?)
 }
@@ -236,7 +262,7 @@ mod tests {
 
     #[test]
     fn test_optimizer_high_level_api() {
-        let input = KnapsackInput {
+        let input = ProblemInput {
             items: vec![
                 Item { id: 0, name: "A".into(), weights: vec![10], value: 100 },
                 Item { id: 1, name: "B".into(), weights: vec![10], value: 200 },
@@ -244,6 +270,7 @@ mod tests {
             capacities: vec![15],
             rules: vec![],
             target_value: None,
+            strategy: SolverStrategy::default(),
         };
 
         let optimizer = Optimizer::new(&input);
@@ -255,7 +282,7 @@ mod tests {
 
     #[test]
     fn test_optimizer_infeasible_conflict() {
-        let input = KnapsackInput {
+        let input = ProblemInput {
             items: vec![
                 Item { id: 0, name: "A".into(), weights: vec![10], value: 100 },
                 Item { id: 1, name: "B".into(), weights: vec![10], value: 200 },
@@ -266,6 +293,7 @@ mod tests {
                 BusinessRule::Conflicts { a_id: 0, b_id: 1 },
             ],
             target_value: None,
+            strategy: SolverStrategy::default(),
         };
 
         let optimizer = Optimizer::new(&input);

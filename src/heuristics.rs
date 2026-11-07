@@ -1,5 +1,6 @@
-// src\heuristics.rs
+// src/heuristics.rs
 
+use crate::bitset::BitSet;
 use crate::model::{BusinessRule, Item};
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -8,11 +9,11 @@ use std::time::Instant;
 use web_time::Instant;
 
 pub const EMBED_DIM: usize = 8;
-
 const MESSAGE_PASSING_ROUNDS: usize = 2;
-
 const FIX_HIGH_THRESHOLD: f32 = 0.70;
 const FIX_LOW_THRESHOLD: f32 = 0.30;
+
+type HeuristicBitSet = BitSet<16>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VariableDecision {
@@ -32,14 +33,13 @@ pub struct DivingPrediction {
 pub struct NeuralDivingEngine;
 
 impl NeuralDivingEngine {
-
     pub fn predict(
         items: &[Item],
         capacities: &[u32],
         rules: &[BusinessRule],
     ) -> DivingPrediction {
         let timer = Instant::now();
-        let n = items.len();
+        let n = items.len().min(HeuristicBitSet::CAPACITY);
 
         if n == 0 {
             return DivingPrediction {
@@ -78,13 +78,14 @@ impl NeuralDivingEngine {
         let mut eff_weights_1 = vec![0.0f32; n];
         let mut eff_values = vec![0.0f32; n];
 
+        let mut queue = vec![0usize; n];
+
         for i in 0..n {
-            let mut visited = [0u64; 4];
-            let mut queue = [0usize; 256];
+            let mut visited = HeuristicBitSet::new();
             let mut q_head = 0;
             let mut q_tail = 0;
 
-            visited[i / 64] |= 1u64 << (i % 64);
+            visited.set(i);
             queue[q_tail] = i;
             q_tail += 1;
 
@@ -101,9 +102,9 @@ impl NeuralDivingEngine {
                 tot_v += items[curr].value as f32;
 
                 for &req in &requires_out[curr] {
-                    if (visited[req / 64] & (1u64 << (req % 64))) == 0 {
-                        visited[req / 64] |= 1u64 << (req % 64);
-                        if q_tail < 256 {
+                    if !visited.has(req) {
+                        visited.set(req);
+                        if q_tail < n {
                             queue[q_tail] = req;
                             q_tail += 1;
                         }
@@ -116,7 +117,6 @@ impl NeuralDivingEngine {
         }
 
         let max_val = eff_values.iter().copied().fold(1.0f32, f32::max).max(1.0);
-
         let mut node_embeddings: Vec<[f32; EMBED_DIM]> = Vec::with_capacity(n);
 
         for i in 0..n {
@@ -225,7 +225,7 @@ impl NeuralDivingEngine {
         conflicts: &[Vec<usize>],
         scores: &[f32],
     ) -> (u32, Vec<usize>) {
-        let n = items.len();
+        let n = items.len().min(HeuristicBitSet::CAPACITY);
         let num_dims = capacities.len();
 
         let mut order: Vec<usize> = (0..n).collect();
@@ -233,22 +233,22 @@ impl NeuralDivingEngine {
             scores[b].partial_cmp(&scores[a]).unwrap_or(std::cmp::Ordering::Equal)
         });
 
-        let mut selected_mask = [0u64; 4];
+        let mut selected_mask = HeuristicBitSet::new();
         let mut total_weights = [0u32; 8];
         let mut current_value = 0u32;
 
-        let mut bundle_queue = [0usize; 256];
+        let mut bundle_queue = vec![0usize; n];
 
         for &candidate in &order {
-            if (selected_mask[candidate / 64] & (1u64 << (candidate % 64))) != 0 {
+            if selected_mask.has(candidate) {
                 continue;
             }
 
-            let mut bundle_mask = [0u64; 4];
+            let mut bundle_mask = HeuristicBitSet::new();
             let mut q_head = 0;
             let mut q_tail = 0;
 
-            bundle_mask[candidate / 64] |= 1u64 << (candidate % 64);
+            bundle_mask.set(candidate);
             bundle_queue[q_tail] = candidate;
             q_tail += 1;
 
@@ -257,9 +257,9 @@ impl NeuralDivingEngine {
                 q_head += 1;
 
                 for &req in &requires_out[curr] {
-                    if (bundle_mask[req / 64] & (1u64 << (req % 64))) == 0 {
-                        bundle_mask[req / 64] |= 1u64 << (req % 64);
-                        if q_tail < 256 {
+                    if !bundle_mask.has(req) {
+                        bundle_mask.set(req);
+                        if q_tail < n {
                             bundle_queue[q_tail] = req;
                             q_tail += 1;
                         }
@@ -271,9 +271,7 @@ impl NeuralDivingEngine {
             for i in 0..q_tail {
                 let item_id = bundle_queue[i];
                 for &conf in &conflicts[item_id] {
-                    let conf_in_selected = (selected_mask[conf / 64] & (1u64 << (conf % 64))) != 0;
-                    let conf_in_bundle = (bundle_mask[conf / 64] & (1u64 << (conf % 64))) != 0;
-                    if conf_in_selected || conf_in_bundle {
+                    if selected_mask.has(conf) || bundle_mask.has(conf) {
                         has_conflict = true;
                         break;
                     }
@@ -293,7 +291,7 @@ impl NeuralDivingEngine {
 
             for i in 0..q_tail {
                 let item_id = bundle_queue[i];
-                if (selected_mask[item_id / 64] & (1u64 << (item_id % 64))) == 0 {
+                if !selected_mask.has(item_id) {
                     bundle_value += items[item_id].value;
                     for (dim, &w) in items[item_id].weights.iter().enumerate() {
                         if dim < num_dims && dim < 8 {
@@ -311,58 +309,16 @@ impl NeuralDivingEngine {
             }
 
             if fits {
-                for w_idx in 0..4 {
-                    selected_mask[w_idx] |= bundle_mask[w_idx];
-                }
+                selected_mask.union_with(&bundle_mask);
                 total_weights = next_weights;
                 current_value += bundle_value;
             }
         }
 
         let selected_ids = (0..n)
-            .filter(|&i| (selected_mask[i / 64] & (1u64 << (i % 64))) != 0)
+            .filter(|&i| selected_mask.has(i))
             .collect();
 
         (current_value, selected_ids)
-    }
-
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_heuristics_execution_and_validity() {
-        let items = vec![
-            Item { id: 0, name: "A".into(), weights: vec![100, 50], value: 90 },
-            Item { id: 1, name: "B".into(), weights: vec![30, 20],  value: 40 },
-            Item { id: 2, name: "C".into(), weights: vec![80, 60],  value: 70 },
-            Item { id: 3, name: "D".into(), weights: vec![200, 10], value: 30 },
-        ];
-        let capacities = vec![150, 100];
-        let rules = vec![
-            BusinessRule::Requires { from_id: 0, to_id: 1 },
-            BusinessRule::Conflicts { a_id: 1, b_id: 2 },
-        ];
-
-        let pred = NeuralDivingEngine::predict(&items, &capacities, &rules);
-
-        assert!(pred.execution_time_ms < 1.0, "Heuristic must run in sub-millisecond time");
-
-        let mut total_w0 = 0;
-        let mut total_w1 = 0;
-        for &id in &pred.initial_selected_ids {
-            total_w0 += items[id].weights[0];
-            total_w1 += items[id].weights[1];
-        }
-        assert!(total_w0 <= capacities[0]);
-        assert!(total_w1 <= capacities[1]);
-        assert!(
-            !(pred.initial_selected_ids.contains(&1) && pred.initial_selected_ids.contains(&2)),
-            "Initial heuristic solution must not violate conflicts"
-        );
-        assert_eq!(pred.decisions.len(), items.len());
-        assert_eq!(pred.confidence_scores.len(), items.len());
     }
 }

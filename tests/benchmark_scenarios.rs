@@ -260,7 +260,8 @@ fn test_performance() {
             println!("        Memory : ---");
         }
 
-        println!(" MIP Solver  : ");
+        // Pure MIP
+        println!(" Pure MIP    : ");
 
         let probe_timer = BenchTimer::start();
         let mut mip = BranchAndBoundSolver::new(&sc.items, &sc.capacities, &sc.rules);
@@ -309,16 +310,16 @@ fn test_performance() {
         println!("        Score      : {} pt", mip_score);
         println!("        Nodes      : {}", format_num(total_nodes as u64));
         println!("        Mnodes/sec : {:.1}", throughput);
-        
-        println!(" Info. MIP    : ");
+
+        // Info MIP
+        println!(" Info MIP    : ");
 
         let ai_probe_timer = BenchTimer::start();
         let diving = NeuralDivingEngine::predict(&sc.items, &sc.capacities, &sc.rules);
-        let mut mip = BranchAndBoundSolver::new_with_priorities(
+        let mut mip = BranchAndBoundSolver::new(
             &sc.items,
             &sc.capacities,
             &sc.rules,
-            &diving.confidence_scores,
         );
         mip.set_initial_solution(diving.initial_best_value, &diving.initial_selected_ids);
         mip.set_time_limit_ms(TARGET_LIMIT_MS);
@@ -333,11 +334,10 @@ fn test_performance() {
             for _ in 0..BENCH_ITERATIONS {
                 let timer = BenchTimer::start();
                 let diving = NeuralDivingEngine::predict(&sc.items, &sc.capacities, &sc.rules);
-                let mut mip = BranchAndBoundSolver::new_with_priorities(
+                let mut mip = BranchAndBoundSolver::new(
                     &sc.items,
                     &sc.capacities,
                     &sc.rules,
-                    &diving.confidence_scores,
                 );
                 mip.set_initial_solution(diving.initial_best_value, &diving.initial_selected_ids);
                 mip.set_time_limit_ms(TARGET_LIMIT_MS);
@@ -351,6 +351,9 @@ fn test_performance() {
             ai_total_ms / (BENCH_ITERATIONS as f64)
         };
 
+        let ai_secs = avg_ai_ms / MS_PER_SEC;
+        let ai_throughput = if ai_secs > f64::EPSILON { (ai_nodes as f64) / ai_secs / MILLION } else { 0.0 };
+
         let ai_status = if avg_ai_ms <= TARGET_LIMIT_MS {
             "OK".to_string()
         } else {
@@ -362,6 +365,72 @@ fn test_performance() {
         println!("        Time       : {:.2} ms", avg_ai_ms);
         println!("        Score      : {} pt", ai_score);
         println!("        Nodes      : {}", format_num(ai_nodes as u64));
+        println!("        Mnodes/sec : {:.1}", ai_throughput);
+
+        // Mixed MIP
+        println!(" Mixed MIP   : ");
+
+        let run_mixed = || {
+            let rule_count = sc.rules.len();
+            let item_count = sc.items.len();
+            let use_ai = rule_count > 0 
+                && item_count >= 20 
+                && (item_count <= 64 || rule_count * 4 >= item_count);
+
+            let mut mip = BranchAndBoundSolver::new(&sc.items, &sc.capacities, &sc.rules);
+            if use_ai {
+                let diving = NeuralDivingEngine::predict(&sc.items, &sc.capacities, &sc.rules);
+                mip.set_initial_solution(diving.initial_best_value, &diving.initial_selected_ids);
+            }
+            mip.set_time_limit_ms(TARGET_LIMIT_MS);
+            mip.set_max_nodes(100_000);
+            let (score, _, nodes, status) = mip.solve();
+            (score, nodes, status, if use_ai { "Info" } else { "Pure" })
+        };
+
+        let mixed_probe_timer = BenchTimer::start();
+        let (mut mixed_score, mut mixed_nodes, mut mixed_status_code, mut mixed_selected) = run_mixed();
+        let mixed_first_run_ms = mixed_probe_timer.elapsed_ms();
+
+        let avg_mixed_ms = if mixed_first_run_ms > SINGLE_RUN_THRESHOLD_MS {
+            mixed_first_run_ms
+        } else {
+            for _ in 0..WARMUP_ITERATIONS {
+                let _ = run_mixed();
+            }
+
+            let mut mixed_total_ms = 0.0;
+            for _ in 0..BENCH_ITERATIONS {
+                let timer = BenchTimer::start();
+                let (score, nodes, status, selected) = run_mixed();
+                mixed_total_ms += timer.elapsed_ms();
+                mixed_score = score;
+                mixed_nodes = nodes;
+                mixed_status_code = status;
+                mixed_selected = selected;
+            }
+            mixed_total_ms / (BENCH_ITERATIONS as f64)
+        };
+
+        let mixed_secs = avg_mixed_ms / MS_PER_SEC;
+        let mixed_throughput = if mixed_secs > f64::EPSILON {
+            (mixed_nodes as f64) / mixed_secs / MILLION
+        } else {
+            0.0
+        };
+
+        let mixed_status = if avg_mixed_ms <= TARGET_LIMIT_MS {
+            format!("OK (via {})", mixed_selected)
+        } else {
+            format!("EXCEEDED (>{:.1}ms, via {})", TARGET_LIMIT_MS, mixed_selected)
+        };
+
+        println!("        Status     : {}", mixed_status);
+        println!("        Solution   : {:?}", mixed_status_code);
+        println!("        Time       : {:.2} ms", avg_mixed_ms);
+        println!("        Score      : {} pt", mixed_score);
+        println!("        Nodes      : {}", format_num(mixed_nodes as u64));
+        println!("        Mnodes/sec : {:.1}", mixed_throughput);
 
         let sat_config = CompilerConfig::default();
         let target = sc.target_val.unwrap_or(mip_score);
@@ -450,11 +519,12 @@ fn test_neural_diving_acceleration() {
 #[test]
     fn test_optimizer_solution_status() {
         let small_problem = test_a();
-        let input_small = mitsukeru::KnapsackInput {
+        let input_small = mitsukeru::ProblemInput {
             items: small_problem.items,
             capacities: small_problem.capacities,
             rules: small_problem.rules,
             target_value: small_problem.target_val,
+            strategy: mitsukeru::SolverStrategy::default(),
         };
         let opt_small = Optimizer::new(&input_small);
         let res_small = opt_small.solve().expect("Should solve successfully");
@@ -462,11 +532,12 @@ fn test_neural_diving_acceleration() {
         assert_eq!(res_small.best_value, 550);
 
         let large_problem = test_f(30);
-        let input_large = mitsukeru::KnapsackInput {
+        let input_large = mitsukeru::ProblemInput {
             items: large_problem.items,
             capacities: large_problem.capacities,
             rules: large_problem.rules,
             target_value: None,
+            strategy: mitsukeru::SolverStrategy::default(),
         };
         let opt_large = Optimizer::new(&input_large);
         let res_large = opt_large.solve().expect("Should solve large problem");
@@ -477,6 +548,52 @@ fn test_neural_diving_acceleration() {
         );
     assert!(res_large.best_value >= 1180);
     }
+
+
+#[test]
+fn test_optimizer_strategy_switching() {
+    let prob_a = test_a();
+    let input_a = mitsukeru::ProblemInput {
+        items: prob_a.items,
+        capacities: prob_a.capacities,
+        rules: prob_a.rules,
+        target_value: prob_a.target_val,
+        strategy: mitsukeru::SolverStrategy::Mixed,
+    };
+    let sol_a_mixed = Optimizer::new(&input_a).solve().unwrap();
+    assert_eq!(sol_a_mixed.strategy_used, Some(mitsukeru::SolverStrategy::Pure));
+    assert_eq!(sol_a_mixed.best_value, 550);
+    let sol_a_info = Optimizer::new(&input_a)
+        .with_strategy(mitsukeru::SolverStrategy::Info)
+        .solve()
+        .unwrap();
+    assert_eq!(sol_a_info.strategy_used, Some(mitsukeru::SolverStrategy::Info));
+    assert_eq!(sol_a_info.best_value, 550);
+    let prob_g = test_g();
+    let input_g = mitsukeru::ProblemInput {
+        items: prob_g.items,
+        capacities: prob_g.capacities,
+        rules: prob_g.rules,
+        target_value: prob_g.target_val,
+        strategy: mitsukeru::SolverStrategy::Mixed,
+    };
+
+    let sol_g_mixed = Optimizer::new(&input_g).solve().unwrap();
+    assert_eq!(sol_g_mixed.strategy_used, Some(mitsukeru::SolverStrategy::Info));
+    assert_eq!(sol_g_mixed.best_value, 1473);
+
+    let sol_g_pure = Optimizer::new(&input_g)
+        .with_strategy(mitsukeru::SolverStrategy::Pure)
+        .solve()
+        .unwrap();
+    assert_eq!(sol_g_pure.strategy_used, Some(mitsukeru::SolverStrategy::Pure));
+    assert_eq!(sol_g_pure.best_value, 1473);
+    assert!(
+        sol_g_mixed.explored_nodes < sol_g_pure.explored_nodes,
+        "Info MIP selected by Mixed should explore fewer nodes than Pure MIP"
+    );
+}
+
 
 /*
 running 6 tests

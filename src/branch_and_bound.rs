@@ -1,56 +1,12 @@
-// branch_and_bound.rs
+// src/branch_and_bound.rs
 
+use crate::bitset::BitSet;
 use crate::model::{BusinessRule, Item, SolutionStatus};
 
 #[cfg(not(target_arch = "wasm32"))]
 use std::time::Instant;
 #[cfg(target_arch = "wasm32")]
 use web_time::Instant;
-
-#[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
-struct BitSet256 {
-    words: [u64; 4],
-}
-
-impl BitSet256 {
-    #[inline(always)]
-    fn new() -> Self {
-        Self { words: [0; 4] }
-    }
-
-    #[inline(always)]
-    fn set(&mut self, idx: usize) {
-        if idx < 256 {
-            self.words[idx / 64] |= 1u64 << (idx % 64);
-        }
-    }
-
-    #[inline(always)]
-    fn has(&self, idx: usize) -> bool {
-        if idx < 256 {
-            (self.words[idx / 64] & (1u64 << (idx % 64))) != 0
-        } else {
-            false
-        }
-    }
-
-    #[inline(always)]
-    fn is_disjoint(&self, other: &Self) -> bool {
-        ((self.words[0] & other.words[0])
-            | (self.words[1] & other.words[1])
-            | (self.words[2] & other.words[2])
-            | (self.words[3] & other.words[3]))
-            == 0
-    }
-
-    #[inline(always)]
-    fn contains_all(&self, required: &Self) -> bool {
-        ((self.words[0] & required.words[0]) == required.words[0])
-            && ((self.words[1] & required.words[1]) == required.words[1])
-            && ((self.words[2] & required.words[2]) == required.words[2])
-            && ((self.words[3] & required.words[3]) == required.words[3])
-    }
-}
 
 #[derive(Clone, Debug)]
 struct InternalItem {
@@ -61,15 +17,14 @@ struct InternalItem {
     density: f64,
 }
 
-pub struct BranchAndBoundSolver<'a> {
+struct ExactSolverCore<'a, const W: usize> {
     capacities: &'a [u32],
     sorted_items: Vec<InternalItem>,
-    conflicts: Vec<BitSet256>,
-    requires: Vec<BitSet256>,
-    requires_closure: Vec<BitSet256>,
+    conflicts: Vec<BitSet<W>>,
+    requires_closure: Vec<BitSet<W>>,
     best_value: u32,
-    best_mask: BitSet256,
-    pub explored_nodes: u64,
+    best_mask: BitSet<W>,
+    explored_nodes: u64,
     max_nodes: Option<u64>,
     orig_to_sorted: std::collections::HashMap<usize, usize>,
     time_limit_ms: Option<f64>,
@@ -77,32 +32,13 @@ pub struct BranchAndBoundSolver<'a> {
     timed_out: bool,
 }
 
-impl<'a> BranchAndBoundSolver<'a> {
-    
-    pub fn new(items: &[Item], capacities: &'a [u32], rules: &[BusinessRule]) -> Self {
-        Self::new_internal(items, capacities, rules, None)
-    }
-    
-    pub fn set_max_nodes(&mut self, limit: u64) {
-        self.max_nodes = Some(limit);
-    }
-
-    pub fn new_with_priorities(
+impl<'a, const W: usize> ExactSolverCore<'a, W> {
+    fn new(
         items: &[Item],
         capacities: &'a [u32],
         rules: &[BusinessRule],
-        _priorities: &[f32],
     ) -> Self {
-        Self::new(items, capacities, rules)
-    }
-    
-    fn new_internal(
-        items: &[Item],
-        capacities: &'a [u32],
-        rules: &[BusinessRule],
-        priorities: Option<&[f32]>,
-    ) -> Self {
-        let n = items.len().min(256);
+        let n = items.len().min(BitSet::<W>::CAPACITY);
 
         let mut internal_items: Vec<InternalItem> = items
             .iter()
@@ -140,13 +76,8 @@ impl<'a> BranchAndBoundSolver<'a> {
             orig_to_sorted.insert(it.original_id, sorted_idx);
         }
 
-        let mut prefer_take = BitSet256::new();
-        for sorted_idx in 0..internal_items.len() {
-            prefer_take.set(sorted_idx);
-        }
-
-        let mut conflicts = vec![BitSet256::new(); n];
-        let mut requires = vec![BitSet256::new(); n];
+        let mut conflicts = vec![BitSet::<W>::new(); n];
+        let mut requires = vec![BitSet::<W>::new(); n];
 
         for rule in rules {
             match rule {
@@ -168,13 +99,12 @@ impl<'a> BranchAndBoundSolver<'a> {
             }
         }
 
-        let mut requires_closure = requires.clone();
+        let mut requires_closure = requires;
         for k in 0..n {
             for i in 0..n {
                 if requires_closure[i].has(k) {
-                    for word_idx in 0..4 {
-                        requires_closure[i].words[word_idx] |= requires_closure[k].words[word_idx];
-                    }
+                    let k_closure = requires_closure[k];
+                    requires_closure[i].union_with(&k_closure);
                 }
             }
         }
@@ -183,10 +113,9 @@ impl<'a> BranchAndBoundSolver<'a> {
             capacities,
             sorted_items: internal_items,
             conflicts,
-            requires,
             requires_closure,
             best_value: 0,
-            best_mask: BitSet256::new(),
+            best_mask: BitSet::<W>::new(),
             explored_nodes: 0,
             time_limit_ms: None,
             start_time: None,
@@ -196,10 +125,10 @@ impl<'a> BranchAndBoundSolver<'a> {
         }
     }
 
-    pub fn set_initial_solution(&mut self, initial_val: u32, selected_orig_ids: &[usize]) {
+    fn set_initial_solution(&mut self, initial_val: u32, selected_orig_ids: &[usize]) {
         if initial_val > self.best_value {
             self.best_value = initial_val;
-            self.best_mask = BitSet256::new();
+            self.best_mask = BitSet::<W>::new();
             for &orig_id in selected_orig_ids {
                 if let Some(&s_idx) = self.orig_to_sorted.get(&orig_id) {
                     self.best_mask.set(s_idx);
@@ -208,18 +137,14 @@ impl<'a> BranchAndBoundSolver<'a> {
         }
     }
 
-    pub fn set_time_limit_ms(&mut self, limit_ms: f64) {
-        self.time_limit_ms = Some(limit_ms);
-    }
-    
-    pub fn solve(&mut self) -> (u32, Vec<usize>, u64, SolutionStatus) {
+    fn solve(&mut self) -> (u32, Vec<usize>, u64, SolutionStatus) {
         let num_dims = self.capacities.len();
         let current_weights = vec![0u32; num_dims];
         self.explored_nodes = 0;
         self.timed_out = false;
         self.start_time = Some(Instant::now());
 
-        self.dfs(0, BitSet256::new(), 0, &current_weights);
+        self.dfs(0, BitSet::<W>::new(), 0, &current_weights);
 
         let mut selected_ids = Vec::new();
         for (sorted_idx, it) in self.sorted_items.iter().enumerate() {
@@ -236,7 +161,6 @@ impl<'a> BranchAndBoundSolver<'a> {
 
         (self.best_value, selected_ids, self.explored_nodes, status)
     }
-
 
     #[inline(always)]
     fn compute_fractional_bound(
@@ -279,11 +203,10 @@ impl<'a> BranchAndBoundSolver<'a> {
     fn dfs(
         &mut self,
         idx: usize,
-        current_mask: BitSet256,
+        current_mask: BitSet<W>,
         current_val: u32,
         current_weights: &[u32],
     ) {
-        
         if let Some(limit) = self.max_nodes {
             if self.explored_nodes >= limit {
                 self.timed_out = true;
@@ -324,8 +247,7 @@ impl<'a> BranchAndBoundSolver<'a> {
             return;
         }
 
-        let req_closure = &self.requires_closure[idx];
-        let mut bundle_mask = *req_closure;
+        let mut bundle_mask = self.requires_closure[idx];
         bundle_mask.set(idx);
 
         let mut conflict_free = true;
@@ -372,9 +294,7 @@ impl<'a> BranchAndBoundSolver<'a> {
 
         if fits {
             let mut next_mask = current_mask;
-            for w_idx in 0..4 {
-                next_mask.words[w_idx] |= bundle_mask.words[w_idx];
-            }
+            next_mask.union_with(&bundle_mask);
             self.dfs(
                 idx + 1,
                 next_mask,
@@ -384,6 +304,81 @@ impl<'a> BranchAndBoundSolver<'a> {
         }
 
         self.dfs(idx + 1, current_mask, current_val, current_weights);
+    }
+}
+
+pub struct BranchAndBoundSolver<'a> {
+    items: &'a [Item],
+    capacities: &'a [u32],
+    rules: &'a [BusinessRule],
+    initial_val: u32,
+    initial_selected_ids: Vec<usize>,
+    time_limit_ms: Option<f64>,
+    max_nodes: Option<u64>,
+    pub explored_nodes: u64,
+}
+
+impl<'a> BranchAndBoundSolver<'a> {
+    pub fn new(items: &'a [Item], capacities: &'a [u32], rules: &'a [BusinessRule]) -> Self {
+        Self {
+            items,
+            capacities,
+            rules,
+            initial_val: 0,
+            initial_selected_ids: Vec::new(),
+            time_limit_ms: None,
+            max_nodes: None,
+            explored_nodes: 0,
+        }
+    }
+
+    pub fn new_with_priorities(
+        items: &'a [Item],
+        capacities: &'a [u32],
+        rules: &'a [BusinessRule],
+        _priorities: &[f32],
+    ) -> Self {
+        Self::new(items, capacities, rules)
+    }
+
+    pub fn set_initial_solution(&mut self, initial_val: u32, selected_orig_ids: &[usize]) {
+        self.initial_val = initial_val;
+        self.initial_selected_ids = selected_orig_ids.to_vec();
+    }
+
+    pub fn set_time_limit_ms(&mut self, limit_ms: f64) {
+        self.time_limit_ms = Some(limit_ms);
+    }
+
+    pub fn set_max_nodes(&mut self, limit: u64) {
+        self.max_nodes = Some(limit);
+    }
+
+    pub fn solve(&mut self) -> (u32, Vec<usize>, u64, SolutionStatus) {
+        let n = self.items.len();
+        let (val, selected, nodes, status) = if n <= 256 {
+            self.solve_fixed::<4>()
+        } else if n <= 512 {
+            self.solve_fixed::<8>()
+        } else {
+            self.solve_fixed::<16>()
+        };
+        self.explored_nodes = nodes;
+        (val, selected, nodes, status)
+    }
+
+    fn solve_fixed<const W: usize>(&self) -> (u32, Vec<usize>, u64, SolutionStatus) {
+        let mut core = ExactSolverCore::<W>::new(self.items, self.capacities, self.rules);
+        if let Some(limit) = self.time_limit_ms {
+            core.time_limit_ms = Some(limit);
+        }
+        if let Some(nodes) = self.max_nodes {
+            core.max_nodes = Some(nodes);
+        }
+        if self.initial_val > 0 {
+            core.set_initial_solution(self.initial_val, &self.initial_selected_ids);
+        }
+        core.solve()
     }
 }
 

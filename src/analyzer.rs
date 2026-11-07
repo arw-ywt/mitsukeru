@@ -1,9 +1,10 @@
-// analyzer.rs
+// src/analyzer.rs
 
+use crate::bitset::BitSet;
 use crate::model::{
     BusinessRule, CapacityConflict, ChainConflict, ConflictReport, Item, TargetConflict,
 };
-use std::collections::{HashSet, VecDeque};
+use std::collections::VecDeque;
 
 pub struct InfeasibilityAnalyzer<'a> {
     items: &'a [Item],
@@ -32,114 +33,185 @@ impl<'a> InfeasibilityAnalyzer<'a> {
 
     pub fn analyze(&self) -> ConflictReport {
         let n = self.items.len();
+        if n <= 256 {
+            self.analyze_core::<4>()
+        } else if n <= 512 {
+            self.analyze_core::<8>()
+        } else {
+            self.analyze_core::<16>()
+        }
+    }
+
+    fn analyze_core<const W: usize>(&self) -> ConflictReport {
+        let n = self.items.len();
+        let n_clamped = n.min(BitSet::<W>::CAPACITY);
+
         let mut adj_requires = vec![Vec::new(); n];
-        let mut conflicts = vec![HashSet::new(); n];
+        let mut conflicts = vec![BitSet::<W>::new(); n];
+        let mut closure = vec![BitSet::<W>::new(); n];
+
+        for i in 0..n {
+            closure[i].set(i);
+        }
 
         for rule in self.rules {
             match rule {
                 BusinessRule::Requires { from_id, to_id } => {
                     if *from_id < n && *to_id < n {
                         adj_requires[*from_id].push(*to_id);
+                        closure[*from_id].set(*to_id);
                     }
                 }
                 BusinessRule::Conflicts { a_id, b_id } => {
                     if *a_id < n && *b_id < n {
-                        conflicts[*a_id].insert(*b_id);
-                        conflicts[*b_id].insert(*a_id);
+                        conflicts[*a_id].set(*b_id);
+                        conflicts[*b_id].set(*a_id);
                     }
+                }
+            }
+        }
+
+        for k in 0..n_clamped {
+            for i in 0..n_clamped {
+                if closure[i].has(k) {
+                    let k_closure = closure[k];
+                    closure[i].union_with(&k_closure);
                 }
             }
         }
 
         let mut logical_chain_conflicts = Vec::new();
         let mut capacity_conflicts = Vec::new();
+        let num_dims = self.capacities.len();
 
         for root in 0..n {
-            let mut visited = HashSet::new();
-            let mut queue = VecDeque::new();
-            let mut path_parent = vec![None; n];
+            let conflict_bits = closure[root].intersect(&conflicts[root]);
+            if !conflict_bits.is_empty() {
+                let mut visited_bfs = BitSet::<W>::new();
+                let mut queue = VecDeque::new();
+                let mut path_parent = vec![None; n];
 
-            visited.insert(root);
-            queue.push_back(root);
+                visited_bfs.set(root);
+                queue.push_back(root);
 
-            while let Some(curr) = queue.pop_front() {
-                for &next in &adj_requires[curr] {
-                    if !visited.contains(&next) {
-                        visited.insert(next);
-                        path_parent[next] = Some(curr);
-                        queue.push_back(next);
+                while let Some(curr) = queue.pop_front() {
+                    for &next in &adj_requires[curr] {
+                        if !visited_bfs.has(next) {
+                            visited_bfs.set(next);
+                            path_parent[next] = Some(curr);
+                            queue.push_back(next);
 
-                        if conflicts[root].contains(&next) {
-                            let mut path = vec![next];
-                            let mut p = Some(curr);
-                            while let Some(node) = p {
-                                path.push(node);
-                                p = path_parent[node];
+                            if conflicts[root].has(next) {
+                                let mut path = vec![next];
+                                let mut p = Some(curr);
+                                while let Some(node) = p {
+                                    path.push(node);
+                                    p = path_parent[node];
+                                }
+                                path.reverse();
+
+                                let path_names: Vec<String> = path
+                                    .iter()
+                                    .map(|&id| self.items[id].name.clone())
+                                    .collect();
+
+                                let msg = format!(
+                                    "Chain Conflict: [{}] requires '{}', but it conflicts with root '{}'",
+                                    path_names.join(" -> "),
+                                    self.items[next].name,
+                                    self.items[root].name
+                                );
+
+                                logical_chain_conflicts.push(ChainConflict {
+                                    root_id: root,
+                                    conflicting_id: next,
+                                    path_ids: path,
+                                    message: msg,
+                                });
                             }
-                            path.reverse();
-
-                            let path_names: Vec<String> = path
-                                .iter()
-                                .map(|&id| self.items[id].name.clone())
-                                .collect();
-
-                            let msg = format!(
-                                "Chain Conflict: [{}] requires '{}', but it conflicts with root '{}'",
-                                path_names.join(" -> "),
-                                self.items[next].name,
-                                self.items[root].name
-                            );
-
-                            logical_chain_conflicts.push(ChainConflict {
-                                root_id: root,
-                                conflicting_id: next,
-                                path_ids: path,
-                                message: msg,
-                            });
                         }
                     }
                 }
             }
 
-            let num_dims = self.capacities.len();
-            let mut bundle_weights = vec![0u32; num_dims];
-            for &req_id in &visited {
+            let mut bundle_weights = [0u32; 8];
+            let mut overflowed_dim = None;
+
+            if num_dims <= 8 {
+                closure[root].for_each_one(|req_id| {
+                    if req_id < n {
+                        let it_w = &self.items[req_id].weights;
+                        for d in 0..num_dims {
+                            bundle_weights[d] += it_w.get(d).copied().unwrap_or(0);
+                        }
+                    }
+                });
+
                 for d in 0..num_dims {
-                    bundle_weights[d] += self.items[req_id].weights.get(d).copied().unwrap_or(0);
+                    if bundle_weights[d] > self.capacities[d] {
+                        overflowed_dim = Some(d);
+                        break;
+                    }
+                }
+            } else {
+                let mut dyn_weights = vec![0u32; num_dims];
+                closure[root].for_each_one(|req_id| {
+                    if req_id < n {
+                        let it_w = &self.items[req_id].weights;
+                        for d in 0..num_dims {
+                            dyn_weights[d] += it_w.get(d).copied().unwrap_or(0);
+                        }
+                    }
+                });
+                for d in 0..num_dims {
+                    if dyn_weights[d] > self.capacities[d] {
+                        overflowed_dim = Some(d);
+                        bundle_weights[0] = dyn_weights[d];
+                        break;
+                    }
                 }
             }
-            
-            for d in 0..num_dims {
-                if bundle_weights[d] > self.capacities[d] {
-                    let bundle_ids: Vec<usize> = visited.iter().copied().collect();
-                    let msg = match visited.len() {
-                        1 => format!(
-                            "Single Capacity Overflow: '{}' consumes {} for constraint {}, exceeding limit ({})",
-                            self.items[root].name,
-                            bundle_weights[d],
-                            d + 1,
-                            self.capacities[d]
-                        ),
-                        _ => format!(
-                            "Bundle Capacity Overflow: Selecting '{}' requires {} items with total constraint {} consumption ({}), exceeding limit ({})",
-                            self.items[root].name,
-                            visited.len(),
-                            d + 1,
-                            bundle_weights[d],
-                            self.capacities[d]
-                        ),
-                    };
 
-                    capacity_conflicts.push(CapacityConflict {
-                        root_id: root,
-                        dimension: d,
-                        capacity_limit: self.capacities[d],
-                        consumed_weight: bundle_weights[d],
-                        bundle_ids,
-                        message: msg,
-                    });
-                    break;
-                }
+            if let Some(d) = overflowed_dim {
+                let mut bundle_ids = Vec::with_capacity(closure[root].count_ones());
+                closure[root].for_each_one(|id| {
+                    if id < n {
+                        bundle_ids.push(id);
+                    }
+                });
+
+                let consumed = if num_dims <= 8 {
+                    bundle_weights[d]
+                } else {
+                    bundle_weights[0]
+                };
+
+                let msg = match bundle_ids.len() {
+                    1 => format!(
+                        "Single Capacity Overflow: '{}' consumes {} for constraint {}, exceeding limit ({})",
+                        self.items[root].name,
+                        consumed,
+                        d + 1,
+                        self.capacities[d]
+                    ),
+                    _ => format!(
+                        "Bundle Capacity Overflow: Selecting '{}' requires {} items with total constraint {} consumption ({}), exceeding limit ({})",
+                        self.items[root].name,
+                        bundle_ids.len(),
+                        d + 1,
+                        consumed,
+                        self.capacities[d]
+                    ),
+                };
+
+                capacity_conflicts.push(CapacityConflict {
+                    root_id: root,
+                    dimension: d,
+                    capacity_limit: self.capacities[d],
+                    consumed_weight: consumed,
+                    bundle_ids,
+                    message: msg,
+                });
             }
         }
 

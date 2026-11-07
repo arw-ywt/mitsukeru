@@ -1,21 +1,16 @@
 // tests/schema_drift_test.rs
 
-use mitsukeru::KnapsackInput;
+use mitsukeru::ProblemInput;
 use mitsukeru::schemars::schema_for;
 use std::fs;
 
 #[test]
 fn generate_and_verify_schema() {
-    let current_schema = schema_for!(KnapsackInput);
+    let current_schema = schema_for!(ProblemInput);
     let expected_json = serde_json::to_string_pretty(&current_schema).unwrap();
-
-    // フォルダがなければ自動作成して最新のスキーマを書き出す
     fs::create_dir_all("schemas/v1").unwrap();
     let schema_path = "schemas/v1/mitsukeru-schema.json";
-    
-    // 常に最新に自動アップデート（あるいは Drift チェック）
     let _ = fs::write(schema_path, &expected_json);
-
     let committed_json = fs::read_to_string(schema_path)
         .expect("Schema file missing.");
 

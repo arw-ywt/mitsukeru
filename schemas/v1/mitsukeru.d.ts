@@ -13,7 +13,7 @@ export type BusinessRule = RequirementConstraint | ConflictConstraint;
 /**
  * The root problem specification defining candidate items, resource capacities, dependency/exclusion rules, and an optional target score.
  */
-export interface KnapsackInputConfiguration {
+export interface ProblemInputConfiguration {
   /**
    * Capacity limits for each resource dimension (e.g., [Budget, Weight, Power]).
    */

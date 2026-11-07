@@ -7,7 +7,7 @@
 // target/criterion/report/index.html
 
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
-use mitsukeru::{BranchAndBoundSolver, KnapsackInput, Optimizer};
+use mitsukeru::{BranchAndBoundSolver, ProblemInput, Optimizer};
 
 #[path = "../tests/common/mod.rs"]
 mod common;
@@ -46,14 +46,31 @@ fn bench_solver_scenarios(c: &mut Criterion) {
             })
         });
 
-        let input = KnapsackInput {
+        let mut input = ProblemInput {
             items: problem.items,
             capacities: problem.capacities,
             rules: problem.rules,
             target_value: problem.target_val,
+            strategy: mitsukeru::SolverStrategy::default(),
         };
 
-        group.bench_with_input(BenchmarkId::new("Optimizer_Full", &id), &input, |b, inp| {
+        group.bench_with_input(BenchmarkId::new("Opt_Mixed", &id), &input, |b, inp| {
+            b.iter(|| {
+                let optimizer = Optimizer::new(black_box(inp));
+                optimizer.solve()
+            })
+        });
+
+        input.strategy = mitsukeru::SolverStrategy::Pure;
+        group.bench_with_input(BenchmarkId::new("Opt_Pure", &id), &input, |b, inp| {
+            b.iter(|| {
+                let optimizer = Optimizer::new(black_box(inp));
+                optimizer.solve()
+            })
+        });
+
+        input.strategy = mitsukeru::SolverStrategy::Info;
+        group.bench_with_input(BenchmarkId::new("Opt_Info", &id), &input, |b, inp| {
             b.iter(|| {
                 let optimizer = Optimizer::new(black_box(inp));
                 optimizer.solve()

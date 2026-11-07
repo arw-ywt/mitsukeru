@@ -1,13 +1,27 @@
-// model.rs
+// src/model.rs
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// # Knapsack Input Configuration
+/// ## Solver Optimization Strategy
+/// Execution mode controlling the search and optimization algorithm.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum SolverStrategy {
+    /// Automatically selects the faster strategy (`Pure` vs. `Info`) based on problem size and constraint density (default).
+    #[default]
+    Mixed,
+    /// Exact branch-and-bound search without neural inference or primal heuristics.
+    Pure,
+    /// Branch-and-bound search guided by Neural Diving, leveraging constraint graph embeddings and a greedy heuristic for an initial warm start.
+    Info,
+}
+
+/// ## Problem Input Configuration
 /// The root problem specification defining candidate items, resource capacities,
 /// dependency/exclusion rules, and an optional target score.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct KnapsackInput {
+pub struct ProblemInput {
     /// List of candidate items available for selection.
     pub items: Vec<Item>,
     /// Capacity limits for each resource dimension (e.g., [Budget, Weight, Power]).
@@ -16,9 +30,34 @@ pub struct KnapsackInput {
     pub rules: Vec<BusinessRule>,
     /// Optional target objective value to satisfy.
     pub target_value: Option<u32>,
+    /// Optimization search strategy (defaults to `Mixed` if omitted).
+    #[serde(default)]
+    pub strategy: SolverStrategy,
 }
 
-/// # Selectable Item
+impl ProblemInput {
+    pub fn new(
+        items: Vec<Item>,
+        capacities: Vec<u32>,
+        rules: Vec<BusinessRule>,
+        target_value: Option<u32>,
+    ) -> Self {
+        Self {
+            items,
+            capacities,
+            rules,
+            target_value,
+            strategy: SolverStrategy::default(),
+        }
+    }
+    
+    pub fn with_strategy(mut self, strategy: SolverStrategy) -> Self {
+        self.strategy = strategy;
+        self
+    }
+}
+
+/// ## Selectable Item
 /// Represents a decision candidate with multi-dimensional resource consumption
 /// and an associated objective value.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -33,12 +72,12 @@ pub struct Item {
     pub value: u32,
 }
 
-/// # Business Rule
+/// ## Business Rule
 /// Logical constraints specifying dependencies or mutual exclusions between items.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "type")]
 pub enum BusinessRule {
-    /// # Requirement Constraint
+    /// ## Requirement Constraint
     /// Selecting `from_id` strictly requires selecting `to_id`.
     Requires {
         /// The item requiring the prerequisite.
@@ -46,7 +85,7 @@ pub enum BusinessRule {
         /// The item that must be included as a prerequisite.
         to_id: usize,
     },
-    /// # Conflict Constraint
+    /// ## Conflict Constraint
     /// Items `a_id` and `b_id` are mutually exclusive and cannot be selected together.
     Conflicts {
         /// The first conflicting item.
@@ -56,7 +95,7 @@ pub enum BusinessRule {
     },
 }
 
-/// # Solution Optimality Status
+/// ## Solution Optimality Status
 /// Indicates whether the returned solution is proven optimal, an approximation,
 /// or bounded due to time/resource limits.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -78,7 +117,7 @@ impl std::fmt::Display for SolutionStatus {
     }
 }
 
-/// # Candidate Solution
+/// ## Candidate Solution
 /// Represents an alternative feasible configuration among the top candidates.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct CandidateSolution {
@@ -88,7 +127,7 @@ pub struct CandidateSolution {
     pub selected_item_ids: Vec<usize>,
 }
 
-/// # Optimal Solution
+/// ## Optimal Solution
 /// Contains the optimization result and execution statistics.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct Solution {
@@ -102,23 +141,15 @@ pub struct Solution {
     pub explored_nodes: u64,
     /// Indicates whether the solution is mathematically optimal or an approximation.
     pub status: SolutionStatus,
+    /// The actual search strategy employed during optimization (records whether `Pure` or `Info` was chosen under `Mixed` mode).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub strategy_used: Option<SolverStrategy>,
     /// Optional list of top-ranked alternative solutions (Ranked 1st to K-th).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub top_candidates: Option<Vec<CandidateSolution>>,
 }
 
-/// # Optimization Error
-/// Represents an infeasible configuration or validation failure.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum OptimizeError {
-    /// The problem cannot be satisfied due to conflicting constraints.
-    Infeasible(ConflictReport),
-    /// The input parameters are malformed or invalid.
-    InvalidInput(String),
-}
-
-
-/// # Conflict Analysis Report
+/// ## Conflict Analysis Report
 /// Structured diagnostic report explaining why a problem instance is infeasible.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct ConflictReport {
@@ -132,7 +163,7 @@ pub struct ConflictReport {
     pub target_conflict: Option<TargetConflict>,
 }
 
-/// # Logical Chain Conflict Details
+/// ## Logical Chain Conflict Details
 /// Identifies a conflict where a dependency chain leads to a mutually exclusive item.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct ChainConflict {
@@ -146,7 +177,7 @@ pub struct ChainConflict {
     pub message: String,
 }
 
-/// # Capacity Overflow Conflict Details
+/// ## Capacity Overflow Conflict Details
 /// Identifies which resource limit is exceeded and by which items.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct CapacityConflict {
@@ -164,6 +195,27 @@ pub struct CapacityConflict {
     pub message: String,
 }
 
+/// ## Target Value Conflict Details
+/// Identifies when a target objective score cannot be achieved.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct TargetConflict {
+    /// The requested target value.
+    pub target_value: u32,
+    /// The maximum achievable score under constraints.
+    pub achievable_value: u32,
+    /// Human-readable explanation.
+    pub message: String,
+}
+
+/// ## Optimization Error
+/// Represents an infeasible configuration or validation failure.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum OptimizeError {
+    /// The problem cannot be satisfied due to conflicting constraints.
+    Infeasible(ConflictReport),
+    /// The input parameters are malformed or invalid.
+    InvalidInput(String),
+}
 
 impl std::fmt::Display for OptimizeError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -187,7 +239,9 @@ impl std::fmt::Display for OptimizeError {
 
 impl std::error::Error for OptimizeError {}
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// ## 2D Dynamic Programming Result
+/// Output returned by the branchless 2D DP solver.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct DpResult {
     pub best_value: u32,
     pub selected_item_ids: Vec<usize>,
@@ -195,7 +249,9 @@ pub struct DpResult {
     pub memory_mb: f64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// ## 3-SAT Reduction Result
+/// Result of compiling the combinatorial optimization problem into a DIMACS CNF representation.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct SatReductionResult {
     pub num_variables: usize,
     pub num_clauses: usize,
@@ -203,24 +259,13 @@ pub struct SatReductionResult {
     pub variable_map: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// ## MIP Solver Result
+/// Direct output returned by the standalone Branch-and-Bound solver.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct MipResult {
     pub best_value: u32,
     pub selected_item_ids: Vec<usize>,
     pub execution_time_ms: f64,
     pub explored_nodes: u64,
     pub status: SolutionStatus, 
-}
-
-
-/// # Target Value Conflict Details
-/// Identifies when a target objective score cannot be achieved.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct TargetConflict {
-    /// The requested target value.
-    pub target_value: u32,
-    /// The maximum achievable score under constraints.
-    pub achievable_value: u32,
-    /// Human-readable explanation.
-    pub message: String,
 }

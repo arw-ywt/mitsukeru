@@ -214,11 +214,11 @@ wasm-pack build --target web --release
 ### A. Basic Usage in Rust
 
 ```rust
-use mitsukeru::{Optimizer, KnapsackInput, Item, BusinessRule, OptimizeError};
+use mitsukeru::{Optimizer, ProblemInput, Item, BusinessRule, OptimizeError};
 
 fn main() {
     // 1. Define candidates, capacities, and rules
-    let input = KnapsackInput {
+    let input = ProblemInput {
         items: vec![
             Item { id: 0, name: "Sunroof".into(),      weights: vec![15, 50], value: 100 },
             Item { id: 1, name: "Reinforced Roof".into(), weights: vec![20, 30], value: 60 },

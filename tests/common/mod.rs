@@ -1,5 +1,6 @@
 // tests/common/mod.rs
 use mitsukeru::{BusinessRule, Item};
+use std::collections::BTreeSet;
 
 #[derive(Clone)]
 pub struct ProblemInstance {
@@ -194,5 +195,365 @@ pub fn test_f(n: usize) -> ProblemInstance {
         capacities: vec![cap_w1, cap_w2],
         rules,
         target_val: Some(target_val),
+    }
+}
+
+pub fn test_g() -> ProblemInstance {
+    let mut items = Vec::new();
+
+    for i in 0..2 {
+        items.push(Item {
+            id: i,
+            name: format!("TRAP_{:02}", i),
+            weights: vec![20, 20],
+            value: 100,
+        });
+    }
+
+    for i in 2..4 {
+        items.push(Item {
+            id: i,
+            name: format!("TRAP_BURDEN_{:02}", i),
+            weights: vec![450, 400],
+            value: 10,
+        });
+    }
+
+    for i in 4..12 {
+        items.push(Item {
+            id: i,
+            name: format!("SYNERGY_{:02}", i),
+            weights: vec![80, 70],
+            value: 120,
+        });
+    }
+
+    for i in 12..28 {
+        let w1 = 70 + ((i * 19) % 40) as u32;
+        let w2 = 60 + ((i * 23) % 40) as u32;
+        let val = 60 + ((i * 13) % 35) as u32;
+        items.push(Item {
+            id: i,
+            name: format!("GEN_{:02}", i),
+            weights: vec![w1, w2],
+            value: val,
+        });
+    }
+
+    let mut rules = Vec::new();
+
+    rules.push(BusinessRule::Requires { from_id: 0, to_id: 2 });
+    rules.push(BusinessRule::Requires { from_id: 1, to_id: 3 });
+    rules.push(BusinessRule::Requires { from_id: 4, to_id: 5 });
+    rules.push(BusinessRule::Requires { from_id: 6, to_id: 7 });
+    rules.push(BusinessRule::Requires { from_id: 8, to_id: 9 });
+
+    rules.push(BusinessRule::Conflicts { a_id: 0, b_id: 13 });
+    rules.push(BusinessRule::Conflicts { a_id: 1, b_id: 17 });
+
+    ProblemInstance {
+        name: "Test G (Honey Trap & Synergy, 28 items)",
+        items,
+        capacities: vec![1200, 1000],
+        rules,
+        target_val: Some(1100),
+    }
+}
+
+
+pub fn test_h() -> ProblemInstance {
+    let mut items = Vec::new();
+
+    for i in 0..4 {
+        items.push(Item {
+            id: i,
+            name: format!("TRAP_{:02}", i),
+            weights: vec![30, 25],
+            value: 120,
+        });
+    }
+
+    for i in 4..8 {
+        items.push(Item {
+            id: i,
+            name: format!("TRAP_BURDEN_{:02}", i),
+            weights: vec![380, 320],
+            value: 5,
+        });
+    }
+
+    for i in 8..20 {
+        items.push(Item {
+            id: i,
+            name: format!("SYNERGY_{:02}", i),
+            weights: vec![90, 75],
+            value: 110,
+        });
+    }
+
+    for i in 20..40 {
+        let w1 = 70 + ((i * 17) % 50) as u32;
+        let w2 = 60 + ((i * 23) % 40) as u32;
+        let val = 50 + ((i * 13) % 40) as u32;
+        items.push(Item {
+            id: i,
+            name: format!("GEN_{:02}", i),
+            weights: vec![w1, w2],
+            value: val,
+        });
+    }
+
+    let mut rules = Vec::new();
+
+    for i in 0..4 {
+        rules.push(BusinessRule::Requires { from_id: i, to_id: i + 4 });
+    }
+
+    rules.push(BusinessRule::Requires { from_id: 8, to_id: 9 });
+    rules.push(BusinessRule::Requires { from_id: 10, to_id: 11 });
+    rules.push(BusinessRule::Requires { from_id: 12, to_id: 13 });
+    rules.push(BusinessRule::Conflicts { a_id: 0, b_id: 21 });
+    rules.push(BusinessRule::Conflicts { a_id: 1, b_id: 25 });
+    rules.push(BusinessRule::Conflicts { a_id: 2, b_id: 30 });
+
+    ProblemInstance {
+        name: "Test G (Honey Trap & Synergy, 40 items)",
+        items,
+        capacities: vec![1500, 1200],
+        rules,
+        target_val: Some(1300),
+    }
+}
+
+pub fn test_i() -> ProblemInstance {
+    let mut items = Vec::new();
+    let n = 54;
+
+    for i in 0..6 {
+        items.push(Item {
+            id: i,
+            name: format!("TRAP_{:02}", i),
+            weights: vec![25, 20],
+            value: 130, 
+        });
+    }
+
+    for i in 6..12 {
+        items.push(Item {
+            id: i,
+            name: format!("TRAP_BURDEN_{:02}", i),
+            weights: vec![300, 250],
+            value: 5,
+        });
+    }
+
+    for i in 12..28 {
+        items.push(Item {
+            id: i,
+            name: format!("SYNERGY_{:02}", i),
+            weights: vec![70, 60],
+            value: 95,
+        });
+    }
+
+    for i in 28..n {
+        let w1 = 50 + ((i * 17) % 40) as u32;
+        let w2 = 40 + ((i * 23) % 35) as u32;
+        let val = 40 + ((i * 13) % 30) as u32;
+        items.push(Item {
+            id: i,
+            name: format!("GEN_{:02}", i),
+            weights: vec![w1, w2],
+            value: val,
+        });
+    }
+
+    let mut rules = Vec::new();
+
+    for i in 0..6 {
+        rules.push(BusinessRule::Requires { from_id: i, to_id: i + 6 });
+    }
+    for i in (12..24).step_by(2) {
+        rules.push(BusinessRule::Requires { from_id: i, to_id: i + 1 });
+    }
+
+    for i in 0..6 {
+        rules.push(BusinessRule::Conflicts { a_id: i, b_id: 28 + i * 3 });
+    }
+
+    ProblemInstance {
+        name: "Test I (Approx vs Optimal Showcase, 54 items)",
+        items,
+        capacities: vec![1800, 1500],
+        rules,
+        target_val: Some(1500),
+    }
+}
+
+pub fn test_j() -> ProblemInstance {
+    let mut items = Vec::new();
+    let n = 40;
+    for i in 0..n {
+        let w1 = 50 + ((i * 31) % 100) as u32;
+        let w2 = 50 + ((i * 37) % 100) as u32;
+        let val = 40 + ((i * 19) % 80) as u32;
+        items.push(Item {
+            id: i,
+            name: format!("PURE_{:02}", i),
+            weights: vec![w1, w2],
+            value: val,
+        });
+    }
+
+    ProblemInstance {
+        name: "Test J (Pure Knapsack, No Rules)",
+        items,
+        capacities: vec![1500, 1500],
+        rules: vec![],
+        target_val: Some(800),
+    }
+}
+
+pub fn test_k() -> ProblemInstance {
+    let mut items = Vec::new();
+    let n = 36;
+    for i in 0..n {
+        items.push(Item {
+            id: i,
+            name: format!("SYM_{:02}", i),
+            weights: vec![50, 50],
+            value: 100,
+        });
+    }
+
+    let mut rules = Vec::new();
+    for i in (0..n).step_by(4) {
+        rules.push(BusinessRule::Requires { from_id: i, to_id: i + 1 });
+        rules.push(BusinessRule::Conflicts { a_id: i, b_id: i + 2 });
+    }
+
+    ProblemInstance {
+        name: "Test K (High Symmetry Stress)",
+        items,
+        capacities: vec![600, 600],
+        rules,
+        target_val: Some(600),
+    }
+}
+
+pub fn test_l() -> ProblemInstance {
+    let mut items = Vec::new();
+    let n = 100;
+    
+    for i in 0..10 {
+        items.push(Item {
+            id: i,
+            name: format!("MEGA_TRAP_{:02}", i),
+            weights: vec![20, 20],
+            value: 200,
+        });
+    }
+    for i in 10..20 {
+        items.push(Item {
+            id: i,
+            name: format!("MEGA_BURDEN_{:02}", i),
+            weights: vec![500, 500],
+            value: 1,
+        });
+    }
+    for i in 20..n {
+        let w1 = 40 + ((i * 13) % 60) as u32;
+        let w2 = 40 + ((i * 17) % 60) as u32;
+        let val = 30 + ((i * 11) % 50) as u32;
+        items.push(Item {
+            id: i,
+            name: format!("CHAOS_{:02}", i),
+            weights: vec![w1, w2],
+            value: val,
+        });
+    }
+
+    let mut rules = Vec::new();
+    for i in 0..10 {
+        rules.push(BusinessRule::Requires { from_id: i, to_id: i + 10 });
+    }
+    for i in (20..90).step_by(5) {
+        rules.push(BusinessRule::Requires { from_id: i, to_id: i + 1 });
+        rules.push(BusinessRule::Conflicts { a_id: i, b_id: i + 3 });
+    }
+
+    ProblemInstance {
+        name: "Test L (100 Items Chaos Stress Test)",
+        items,
+        capacities: vec![2500, 2500],
+        rules,
+        target_val: Some(1800),
+    }
+}
+
+pub fn test_m() -> ProblemInstance {
+    let n = 50;
+    let mut items = Vec::with_capacity(n);
+    let optimal_set: [usize; 10] = [2, 8, 11, 17, 24, 26, 33, 39, 40, 48];
+    let is_opt = |id: usize| optimal_set.contains(&id);
+    let opt_w1 = [44, 45, 43, 46, 44, 45, 43, 45, 44, 45];
+    let opt_w2 = [45, 43, 46, 44, 44, 45, 44, 43, 46, 44];
+
+    let mut opt_idx = 0;
+    for i in 0..n {
+        let (w1, w2, val) = if is_opt(i) {
+            let res = (opt_w1[opt_idx], opt_w2[opt_idx], 50);
+            opt_idx += 1;
+            res
+        } else {
+            let w1 = 45 + ((i * 7) % 20) as u32;
+            let w2 = 45 + ((i * 11) % 20) as u32;
+            let val = 25 + ((i * 3) % 15) as u32;
+            (w1, w2, val)
+        };
+
+        items.push(Item {
+            id: i,
+            name: format!("MESH_{:02}", i),
+            weights: vec![w1, w2],
+            value: val,
+        });
+    }
+
+    let mut conflict_pairs = BTreeSet::new();
+
+    for b in 0..10 {
+        let start = b * 5;
+        for i in start..(start + 5) {
+            for j in (i + 1)..(start + 5) {
+                conflict_pairs.insert((i, j));
+            }
+        }
+    }
+
+    let mesh_offsets = [1, 2, 3, 6, 7, 11, 13, 17];
+    for i in 0..n {
+        for &offset in &mesh_offsets {
+            let j = (i + offset) % n;
+            let (min_id, max_id) = if i < j { (i, j) } else { (j, i) };
+            if min_id != max_id {
+                if !(is_opt(min_id) && is_opt(max_id)) {
+                    conflict_pairs.insert((min_id, max_id));
+                }
+            }
+        }
+    }
+
+    let rules = conflict_pairs
+        .into_iter()
+        .map(|(a_id, b_id)| BusinessRule::Conflicts { a_id, b_id })
+        .collect();
+
+    ProblemInstance {
+        name: "Test M (Web of Conflicts, 50 items)",
+        items,
+        capacities: vec![450, 450],
+        rules,
+        target_val: Some(500),
     }
 }

@@ -5,12 +5,14 @@ pub mod dp_branchless;
 pub mod sat_compiler;
 pub mod branch_and_bound;
 pub mod analyzer;
+pub mod heuristics;
 
 pub use model::*;
 pub use branch_and_bound::BranchAndBoundSolver;
 pub use analyzer::InfeasibilityAnalyzer;
 pub use sat_compiler::{CompilerConfig, SatCompiler};
 pub use dp_branchless::Flat2dDpSolver;
+pub use heuristics::{NeuralDivingEngine, VariableDecision};
 
 use wasm_bindgen::prelude::*;
 use web_time::Instant;
@@ -43,12 +45,36 @@ impl<'a> Optimizer<'a> {
 
     pub fn solve(&self) -> Result<Solution, OptimizeError> {
         let timer = Timer::start();
-        let mut solver = BranchAndBoundSolver::new(
-            &self.input.items,
-            &self.input.capacities,
-            &self.input.rules,
-        );
-        let (best_value, selected_ids, explored_nodes) = solver.solve();
+        let item_count = self.input.items.len();
+
+        let (best_value, selected_ids, explored_nodes, status) = if item_count < 20 {
+            let mut solver = BranchAndBoundSolver::new(
+                &self.input.items,
+                &self.input.capacities,
+                &self.input.rules,
+            );
+            solver.set_time_limit_ms(2.0);
+            solver.set_max_nodes(100_000);
+            solver.solve()
+        } else {
+            let diving = NeuralDivingEngine::predict(
+                &self.input.items,
+                &self.input.capacities,
+                &self.input.rules,
+            );
+
+            let mut solver = BranchAndBoundSolver::new(
+                &self.input.items,
+                &self.input.capacities,
+                &self.input.rules,
+            );
+
+            solver.set_initial_solution(diving.initial_best_value, &diving.initial_selected_ids);
+            solver.set_time_limit_ms(2.0);
+            solver.set_max_nodes(100_000);
+            solver.solve()
+        };
+
         let analyzer = InfeasibilityAnalyzer::new(
             &self.input.items,
             &self.input.capacities,
@@ -69,6 +95,8 @@ impl<'a> Optimizer<'a> {
             selected_item_ids: selected_ids,
             execution_time_ms,
             explored_nodes,
+            status,
+            top_candidates: None,
         })
     }
 }
@@ -124,7 +152,11 @@ pub fn solve_knapsack_branch_and_bound_core(input: &KnapsackInput) -> MipResult 
     let timer = Timer::start();
 
     let mut solver = BranchAndBoundSolver::new(&input.items, &input.capacities, &input.rules);
-    let (best_value, selected_item_ids, explored_nodes) = solver.solve();
+    
+    solver.set_time_limit_ms(2.0);
+    solver.set_max_nodes(100_000);
+
+    let (best_value, selected_item_ids, explored_nodes, status) = solver.solve();
 
     let execution_time_ms = timer.elapsed_ms();
 
@@ -133,6 +165,7 @@ pub fn solve_knapsack_branch_and_bound_core(input: &KnapsackInput) -> MipResult 
         selected_item_ids,
         execution_time_ms,
         explored_nodes,
+        status,
     }
 }
 
@@ -188,6 +221,13 @@ pub fn analyze_infeasibility(val: JsValue, mip_best_value: u32) -> Result<JsValu
     let input: KnapsackInput = serde_wasm_bindgen::from_value(val)?;
     let res = analyze_infeasibility_core(&input, mip_best_value);
     Ok(serde_wasm_bindgen::to_value(&res)?)
+}
+
+#[wasm_bindgen]
+pub fn predict_heuristics(val: JsValue) -> Result<JsValue, JsValue> {
+    let input: KnapsackInput = serde_wasm_bindgen::from_value(val)?;
+    let prediction = NeuralDivingEngine::predict(&input.items, &input.capacities, &input.rules);
+    Ok(serde_wasm_bindgen::to_value(&prediction.initial_selected_ids)?)
 }
 
 #[cfg(test)]

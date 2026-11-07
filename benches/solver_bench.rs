@@ -23,6 +23,7 @@ fn bench_solver_scenarios(c: &mut Criterion) {
         test_d(),
         test_e(),
         test_f(26),
+        test_g(),
     ];
 
     for (idx, problem) in scenarios.into_iter().enumerate() {

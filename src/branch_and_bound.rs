@@ -78,13 +78,13 @@ impl<'a, const W: usize> ExactSolverCore<'a, W> {
                 for (d, &cap) in capacities.iter().enumerate() {
                     let w = it.weights.get(d).copied().unwrap_or(0);
                     if cap > 0 {
-                        surrogate_w += (w as f64) / (cap as f64);
+                        surrogate_w += f64::from(w) / f64::from(cap);
                     }
                 }
                 if surrogate_w == 0.0 {
                     surrogate_w = 1e-9;
                 }
-                let density = (it.value as f64) / surrogate_w;
+                let density = f64::from(it.value) / surrogate_w;
                 InternalItem {
                     original_id: it.id,
                     weights: it.weights.clone(),
@@ -206,20 +206,20 @@ impl<'a, const W: usize> ExactSolverCore<'a, W> {
             }
         }
 
-        let status = if !self.timed_out {
-            SolutionStatus::Optimal
-        } else {
+        let status = if self.timed_out {
             SolutionStatus::Approximate
+        } else {
+            SolutionStatus::Optimal
         };
 
         (self.best_value, selected_ids, self.explored_nodes, status)
     }
 
     fn upper_bound(&self) -> f64 {
-        if !self.timed_out {
-            self.best_value as f64
+        if self.timed_out {
+            self.root_upper_bound.max(f64::from(self.best_value))
         } else {
-            self.root_upper_bound.max(self.best_value as f64)
+            f64::from(self.best_value)
         }
     }
 
@@ -228,13 +228,13 @@ impl<'a, const W: usize> ExactSolverCore<'a, W> {
             0.0
         } else if self.best_value > 0 {
             let ub = self.upper_bound();
-            (ub - self.best_value as f64) / (self.best_value as f64)
+            (ub - f64::from(self.best_value)) / f64::from(self.best_value)
         } else {
             1.0
         }
     }
 
-    #[inline(always)]
+    
     fn compute_fractional_bound(
         &self,
         start_idx: usize,
@@ -245,7 +245,7 @@ impl<'a, const W: usize> ExactSolverCore<'a, W> {
         for (d, &cap) in self.capacities.iter().enumerate() {
             let used = current_weights.get(d).copied().unwrap_or(0);
             if cap > 0 {
-                let ratio = ((cap.saturating_sub(used)) as f64) / (cap as f64);
+                let ratio = f64::from(cap.saturating_sub(used)) / f64::from(cap);
                 if ratio < min_remaining_ratio {
                     min_remaining_ratio = ratio;
                 }
@@ -253,18 +253,18 @@ impl<'a, const W: usize> ExactSolverCore<'a, W> {
         }
 
         if min_remaining_ratio <= 0.0 {
-            return current_val as f64;
+            return f64::from(current_val);
         }
 
-        let mut bound = current_val as f64;
+        let mut bound = f64::from(current_val);
         let mut rem_budget = min_remaining_ratio * (self.capacities.len() as f64);
 
         for it in &self.sorted_items[start_idx..] {
             if it.surrogate_weight <= rem_budget {
-                bound += it.value as f64;
+                bound += f64::from(it.value);
                 rem_budget -= it.surrogate_weight;
             } else {
-                bound += (it.value as f64) * (rem_budget / it.surrogate_weight);
+                bound += f64::from(it.value) * (rem_budget / it.surrogate_weight);
                 break;
             }
         }
@@ -300,9 +300,9 @@ impl<'a, const W: usize> ExactSolverCore<'a, W> {
         self.explored_nodes += 1;
         
         let cutoff = if self.top_k <= 1 {
-            self.best_value as f64
+            f64::from(self.best_value)
         } else if self.candidates.len() >= self.top_k {
-            self.candidates.last().map(|c| c.value as f64).unwrap_or(0.0)
+            self.candidates.last().map_or(0.0, |c| f64::from(c.value))
         } else {
             0.0
         };
@@ -404,6 +404,7 @@ pub struct BranchAndBoundSolver<'a> {
 }
 
 impl<'a> BranchAndBoundSolver<'a> {
+    #[must_use] 
     pub fn new(items: &'a [Item], capacities: &'a [u32], rules: &'a [BusinessRule]) -> Self {
         Self {
             items,
@@ -472,10 +473,12 @@ impl<'a> BranchAndBoundSolver<'a> {
         res
     }
 
+    #[must_use] 
     pub fn upper_bound(&self) -> f64 {
         self.upper_bound
     }
 
+    #[must_use] 
     pub fn optimality_gap(&self) -> f64 {
         self.optimality_gap
     }
@@ -512,7 +515,7 @@ mod tests {
         for i in 0..20 {
             items.push(Item {
                 id: i,
-                name: format!("Item_{}", i),
+                name: format!("Item_{i}"),
                 weights: vec![10],
                 value: (i as u32 + 1) * 10,
             });
@@ -525,7 +528,7 @@ mod tests {
 
         assert_eq!(val, 570);
         assert_eq!(selected.len(), 3);
-        assert!(nodes < 1000, "Explored nodes should be well under 1000, was {}", nodes);
+        assert!(nodes < 1000, "Explored nodes should be well under 1000, was {nodes}");
         assert_eq!(status, SolutionStatus::Optimal);
     }
 }

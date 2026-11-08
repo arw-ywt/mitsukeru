@@ -15,6 +15,7 @@ pub struct InfeasibilityAnalyzer<'a> {
 }
 
 impl<'a> InfeasibilityAnalyzer<'a> {
+    #[must_use] 
     pub fn new(
         items: &'a [Item],
         capacities: &'a [u32],
@@ -31,6 +32,7 @@ impl<'a> InfeasibilityAnalyzer<'a> {
         }
     }
 
+    #[must_use] 
     pub fn analyze(&self) -> ConflictReport {
         let n = self.items.len();
         if n <= 256 {

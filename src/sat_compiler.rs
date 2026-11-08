@@ -44,6 +44,7 @@ impl Default for CnfBuilder {
 }
 
 impl CnfBuilder {
+    #[must_use] 
     pub fn new() -> Self {
         let mut builder = Self {
             next_var: 1,
@@ -64,7 +65,7 @@ impl CnfBuilder {
     pub fn alloc_var(&mut self, desc: &str) -> Literal {
         let v = self.next_var;
         self.next_var += 1;
-        self.var_descriptions.push(format!("v{}: {}", v, desc));
+        self.var_descriptions.push(format!("v{v}: {desc}"));
         Literal(v)
     }
 
@@ -145,6 +146,7 @@ impl CnfBuilder {
 pub struct SatCompiler;
 
 impl SatCompiler {
+    #[must_use] 
     pub fn compile(
         items: &[Item],
         capacities: &[u32],
@@ -197,7 +199,7 @@ impl SatCompiler {
 
         let num_vars = (builder.next_var - 1) as usize;
         let num_clauses = builder.clauses.len();
-        let mut dimacs = format!("p cnf {} {}\n", num_vars, num_clauses);
+        let mut dimacs = format!("p cnf {num_vars} {num_clauses}\n");
         for c in &builder.clauses {
             for lit in c {
                 dimacs.push_str(&format!("{} ", lit.0));
@@ -243,7 +245,7 @@ impl SatCompiler {
             for chunk in vectors.chunks(2) {
                 if chunk.len() == 2 {
                     let sum_res = builder.add_ripple_carry_adder(&chunk[0], &chunk[1]);
-                    builder.var_descriptions.push(format!("{}_tree_step_{}_merge", prefix, step));
+                    builder.var_descriptions.push(format!("{prefix}_tree_step_{step}_merge"));
                     next_vectors.push(sum_res);
                 } else {
                     next_vectors.push(chunk[0].clone());
@@ -279,7 +281,7 @@ impl SatCompiler {
 
         while val > 0 || bits.is_empty() {
             let is_one = (val & 1) == 1;
-            let param_var = builder.alloc_var(&format!("{}_bit{}_{}", desc_prefix, bit_idx, if is_one { 1 } else { 0 }));
+            let param_var = builder.alloc_var(&format!("{}_bit{}_{}", desc_prefix, bit_idx, i32::from(is_one)));
             
             if is_one {
                 builder.add_clause(vec![param_var]);
@@ -292,7 +294,7 @@ impl SatCompiler {
             bit_idx += 1;
         }
 
-        builder.var_descriptions.push(format!("ParamBus: {} = {}", desc_prefix, original_val));
+        builder.var_descriptions.push(format!("ParamBus: {desc_prefix} = {original_val}"));
         bits
     }
 }

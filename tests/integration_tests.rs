@@ -41,6 +41,7 @@ pub struct BenchTimer {
 }
 
 impl BenchTimer {
+    #[must_use] 
     pub fn start() -> Self {
         Self {
             #[cfg(not(target_arch = "wasm32"))]
@@ -50,6 +51,7 @@ impl BenchTimer {
         }
     }
 
+    #[must_use] 
     pub fn elapsed_ms(&self) -> f64 {
         #[cfg(not(target_arch = "wasm32"))]
         {
@@ -62,10 +64,12 @@ impl BenchTimer {
         }
     }
 
+    #[must_use] 
     pub fn elapsed_secs(&self) -> f64 {
         self.elapsed_ms() / MS_PER_SEC
     }
 
+    #[must_use] 
     pub fn throughput_mops(&self, operations: u64) -> f64 {
         let secs = self.elapsed_secs();
         if secs <= f64::EPSILON {
@@ -153,7 +157,7 @@ fn test_d_5000_1000() {
 fn test_stress_memory() {
     let dummy_items: Vec<Item> = (0..15).map(|i| Item {
         id: i,
-        name: format!("F_{:03}", i),
+        name: format!("F_{i:03}"),
         weights: vec![100, 100],
         value: 50,
     }).collect();
@@ -164,15 +168,15 @@ fn test_stress_memory() {
     dp_large.solve(&dummy_items);
     let (lt_bytes, lh_bytes, ltotal_bytes) = dp_large.allocated_bytes();
 
-    let grid_x = cap_x as u64 + 1;
-    let grid_y = cap_y as u64 + 1;
+    let grid_x = u64::from(cap_x) + 1;
+    let grid_y = u64::from(cap_y) + 1;
     let grid_cells = grid_x * grid_y;
 
     println!("\n[Memory Test]");
     println!(" Target    : Flat2dDpSolver");
     println!(" Problem   : ");
     println!("        Items: {}", dummy_items.len());
-    println!("        Capacities: [{}, {}]", cap_x, cap_y);
+    println!("        Capacities: [{cap_x}, {cap_y}]");
     println!("        Grid Cells: {} ({}x{})", format_num(grid_cells), grid_x, grid_y);
     println!(" Status    : PASSED\n");
 
@@ -211,17 +215,17 @@ fn test_performance() {
     ];
 
     for (label, sc) in &test_cases {
-        let cap_x = sc.capacities[0] as u64;
-        let cap_y = sc.capacities[1] as u64;
+        let cap_x = u64::from(sc.capacities[0]);
+        let cap_y = u64::from(sc.capacities[1]);
         let grid_w = cap_x + 1;
         let grid_h = cap_y + 1;
         let grid_cells = grid_w * grid_h;
 
-        println!("<{}>", label);
+        println!("<{label}>");
         println!(" Items       : {}", sc.items.len());
         println!(" Capacities  : [{}, {}]", sc.capacities[0], sc.capacities[1]);
         if let Some(target) = sc.target_val {
-            println!(" Target      : {} pt", target);
+            println!(" Target      : {target} pt");
         }
 
         println!(" DP Solver   : ");
@@ -247,10 +251,10 @@ fn test_performance() {
             let avg_ms = total_ms / (BENCH_ITERATIONS as f64);
 
             println!("        Status : OK");
-            println!("        Time   : {:.2} ms", avg_ms);
-            println!("        Score  : {} pt", dp_score);
+            println!("        Time   : {avg_ms:.2} ms");
+            println!("        Score  : {dp_score} pt");
             println!("        Grid   : {} cells ({}x{})", format_num(grid_cells), grid_w, grid_h);
-            println!("        Memory : {:.2} MB", mem_total_mb);
+            println!("        Memory : {mem_total_mb:.2} MB");
         } else {
             println!("        Status : SKIPPED (OOM)");
             println!("        Time   : ---");
@@ -300,15 +304,15 @@ fn test_performance() {
         let mip_status = if avg_ms <= TARGET_LIMIT_MS {
             "OK".to_string()
         } else {
-            format!("EXCEEDED (>{:.1}ms)", TARGET_LIMIT_MS)
+            format!("EXCEEDED (>{TARGET_LIMIT_MS:.1}ms)")
         };
 
-        println!("        Status     : {}", mip_status);
-        println!("        Solution   : {:?}", mip_status_code);
-        println!("        Time       : {:.2} ms", avg_ms);
-        println!("        Score      : {} pt", mip_score);
+        println!("        Status     : {mip_status}");
+        println!("        Solution   : {mip_status_code:?}");
+        println!("        Time       : {avg_ms:.2} ms");
+        println!("        Score      : {mip_score} pt");
         println!("        Nodes      : {}", format_num(total_nodes));
-        println!("        Mnodes/sec : {:.1}", throughput);
+        println!("        Mnodes/sec : {throughput:.1}");
 
         // Heuristic BnB
         println!(" Heuristic BnB    : ");
@@ -356,15 +360,15 @@ fn test_performance() {
         let heur_status = if avg_heur_ms <= TARGET_LIMIT_MS {
             "OK".to_string()
         } else {
-            format!("EXCEEDED (>{:.1}ms)", TARGET_LIMIT_MS)
+            format!("EXCEEDED (>{TARGET_LIMIT_MS:.1}ms)")
         };
 
-        println!("        Status     : {}", heur_status);
-        println!("        Solution   : {:?}", heur_status_code);
-        println!("        Time       : {:.2} ms", avg_heur_ms);
-        println!("        Score      : {} pt", heur_score);
+        println!("        Status     : {heur_status}");
+        println!("        Solution   : {heur_status_code:?}");
+        println!("        Time       : {avg_heur_ms:.2} ms");
+        println!("        Score      : {heur_score} pt");
         println!("        Nodes      : {}", format_num(heur_nodes));
-        println!("        Mnodes/sec : {:.1}", heur_throughput);
+        println!("        Mnodes/sec : {heur_throughput:.1}");
 
         // Mixed Auto
         println!(" Mixed Auto   : ");
@@ -419,17 +423,17 @@ fn test_performance() {
         };
 
         let mixed_status = if avg_mixed_ms <= TARGET_LIMIT_MS {
-            format!("OK (via {})", mixed_selected)
+            format!("OK (via {mixed_selected})")
         } else {
-            format!("EXCEEDED (>{:.1}ms, via {})", TARGET_LIMIT_MS, mixed_selected)
+            format!("EXCEEDED (>{TARGET_LIMIT_MS:.1}ms, via {mixed_selected})")
         };
 
-        println!("        Status     : {}", mixed_status);
-        println!("        Solution   : {:?}", mixed_status_code);
-        println!("        Time       : {:.2} ms", avg_mixed_ms);
-        println!("        Score      : {} pt", mixed_score);
+        println!("        Status     : {mixed_status}");
+        println!("        Solution   : {mixed_status_code:?}");
+        println!("        Time       : {avg_mixed_ms:.2} ms");
+        println!("        Score      : {mixed_score} pt");
         println!("        Nodes      : {}", format_num(mixed_nodes));
-        println!("        Mnodes/sec : {:.1}", mixed_throughput);
+        println!("        Mnodes/sec : {mixed_throughput:.1}");
 
         let sat_config = CompilerConfig::default();
         let target = sc.target_val.unwrap_or(mip_score);
@@ -439,7 +443,7 @@ fn test_performance() {
 
         println!(" SAT Compile : ");
         if probe_ms > SAT_SKIP_TIMEOUT_MS {
-            println!("        Status     : SKIPPED (Timeout >{:.0}ms)", SAT_SKIP_TIMEOUT_MS);
+            println!("        Status     : SKIPPED (Timeout >{SAT_SKIP_TIMEOUT_MS:.0}ms)");
             println!("        Time       : ---");
             println!("        Vars       : ---");
             println!("        Clauses    : ---");
@@ -464,11 +468,11 @@ fn test_performance() {
             let sat_status = if avg_sat_ms <= TARGET_LIMIT_MS {
                 "OK".to_string()
             } else {
-                format!("EXCEEDED (>{:.1}ms)", TARGET_LIMIT_MS)
+                format!("EXCEEDED (>{TARGET_LIMIT_MS:.1}ms)")
             };
 
-            println!("        Status     : {}", sat_status);
-            println!("        Time       : {:.2} ms", avg_sat_ms);
+            println!("        Status     : {sat_status}");
+            println!("        Time       : {avg_sat_ms:.2} ms");
             println!("        Vars       : {}", format_num(sat_vars as u64));
             println!("        Clauses    : {}", format_num(sat_clauses as u64));
         }
@@ -495,15 +499,12 @@ fn test_heuristic_acceleration() {
 
     assert!(
         heur_nodes <= base_nodes,
-        "graph-based heuristics should reduce search nodes: AI={} vs Base={}",
-        heur_nodes,
-        base_nodes
+        "graph-based heuristics should reduce search nodes: AI={heur_nodes} vs Base={base_nodes}"
     );
 
     assert_eq!(
         heur_val, base_val,
-        "AI accelerated solution must retain 100% optimal value: AI={} vs Base={}",
-        heur_val, base_val
+        "AI accelerated solution must retain 100% optimal value: AI={heur_val} vs Base={base_val}"
     );
 
     let mut w0 = 0;

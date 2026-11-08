@@ -173,7 +173,7 @@ pub fn test_f(n: usize) -> ProblemInstance {
         let val = 60 + ((i * 29) % 35) as u32;
         Item {
             id: i,
-            name: format!("F_{:03}", i),
+            name: format!("F_{i:03}"),
             weights: vec![base_w1, base_w2],
             value: val,
         }
@@ -207,7 +207,7 @@ pub fn test_g() -> ProblemInstance {
     for i in 0..2 {
         items.push(Item {
             id: i,
-            name: format!("TRAP_{:02}", i),
+            name: format!("TRAP_{i:02}"),
             weights: vec![20, 20],
             value: 100,
         });
@@ -216,7 +216,7 @@ pub fn test_g() -> ProblemInstance {
     for i in 2..4 {
         items.push(Item {
             id: i,
-            name: format!("TRAP_BURDEN_{:02}", i),
+            name: format!("TRAP_BURDEN_{i:02}"),
             weights: vec![450, 400],
             value: 10,
         });
@@ -225,7 +225,7 @@ pub fn test_g() -> ProblemInstance {
     for i in 4..12 {
         items.push(Item {
             id: i,
-            name: format!("SYNERGY_{:02}", i),
+            name: format!("SYNERGY_{i:02}"),
             weights: vec![80, 70],
             value: 120,
         });
@@ -237,7 +237,7 @@ pub fn test_g() -> ProblemInstance {
         let val = 60 + ((i * 13) % 35) as u32;
         items.push(Item {
             id: i,
-            name: format!("GEN_{:02}", i),
+            name: format!("GEN_{i:02}"),
             weights: vec![w1, w2],
             value: val,
         });
@@ -269,7 +269,7 @@ pub fn test_h() -> ProblemInstance {
     for i in 0..4 {
         items.push(Item {
             id: i,
-            name: format!("TRAP_{:02}", i),
+            name: format!("TRAP_{i:02}"),
             weights: vec![30, 25],
             value: 120,
         });
@@ -278,7 +278,7 @@ pub fn test_h() -> ProblemInstance {
     for i in 4..8 {
         items.push(Item {
             id: i,
-            name: format!("TRAP_BURDEN_{:02}", i),
+            name: format!("TRAP_BURDEN_{i:02}"),
             weights: vec![380, 320],
             value: 5,
         });
@@ -287,7 +287,7 @@ pub fn test_h() -> ProblemInstance {
     for i in 8..20 {
         items.push(Item {
             id: i,
-            name: format!("SYNERGY_{:02}", i),
+            name: format!("SYNERGY_{i:02}"),
             weights: vec![90, 75],
             value: 110,
         });
@@ -299,7 +299,7 @@ pub fn test_h() -> ProblemInstance {
         let val = 50 + ((i * 13) % 40) as u32;
         items.push(Item {
             id: i,
-            name: format!("GEN_{:02}", i),
+            name: format!("GEN_{i:02}"),
             weights: vec![w1, w2],
             value: val,
         });
@@ -334,7 +334,7 @@ pub fn test_i() -> ProblemInstance {
     for i in 0..6 {
         items.push(Item {
             id: i,
-            name: format!("TRAP_{:02}", i),
+            name: format!("TRAP_{i:02}"),
             weights: vec![25, 20],
             value: 130, 
         });
@@ -343,7 +343,7 @@ pub fn test_i() -> ProblemInstance {
     for i in 6..12 {
         items.push(Item {
             id: i,
-            name: format!("TRAP_BURDEN_{:02}", i),
+            name: format!("TRAP_BURDEN_{i:02}"),
             weights: vec![300, 250],
             value: 5,
         });
@@ -352,7 +352,7 @@ pub fn test_i() -> ProblemInstance {
     for i in 12..28 {
         items.push(Item {
             id: i,
-            name: format!("SYNERGY_{:02}", i),
+            name: format!("SYNERGY_{i:02}"),
             weights: vec![70, 60],
             value: 95,
         });
@@ -364,7 +364,7 @@ pub fn test_i() -> ProblemInstance {
         let val = 40 + ((i * 13) % 30) as u32;
         items.push(Item {
             id: i,
-            name: format!("GEN_{:02}", i),
+            name: format!("GEN_{i:02}"),
             weights: vec![w1, w2],
             value: val,
         });
@@ -401,7 +401,7 @@ pub fn test_j() -> ProblemInstance {
         let val = 40 + ((i * 19) % 80) as u32;
         items.push(Item {
             id: i,
-            name: format!("PURE_{:02}", i),
+            name: format!("PURE_{i:02}"),
             weights: vec![w1, w2],
             value: val,
         });
@@ -422,7 +422,7 @@ pub fn test_k() -> ProblemInstance {
     for i in 0..n {
         items.push(Item {
             id: i,
-            name: format!("SYM_{:02}", i),
+            name: format!("SYM_{i:02}"),
             weights: vec![50, 50],
             value: 100,
         });
@@ -450,7 +450,7 @@ pub fn test_l() -> ProblemInstance {
     for i in 0..10 {
         items.push(Item {
             id: i,
-            name: format!("MEGA_TRAP_{:02}", i),
+            name: format!("MEGA_TRAP_{i:02}"),
             weights: vec![20, 20],
             value: 200,
         });
@@ -458,7 +458,7 @@ pub fn test_l() -> ProblemInstance {
     for i in 10..20 {
         items.push(Item {
             id: i,
-            name: format!("MEGA_BURDEN_{:02}", i),
+            name: format!("MEGA_BURDEN_{i:02}"),
             weights: vec![500, 500],
             value: 1,
         });
@@ -469,7 +469,7 @@ pub fn test_l() -> ProblemInstance {
         let val = 30 + ((i * 11) % 50) as u32;
         items.push(Item {
             id: i,
-            name: format!("CHAOS_{:02}", i),
+            name: format!("CHAOS_{i:02}"),
             weights: vec![w1, w2],
             value: val,
         });
@@ -516,7 +516,7 @@ pub fn test_m() -> ProblemInstance {
 
         items.push(Item {
             id: i,
-            name: format!("MESH_{:02}", i),
+            name: format!("MESH_{i:02}"),
             weights: vec![w1, w2],
             value: val,
         });

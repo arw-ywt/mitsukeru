@@ -43,7 +43,8 @@ pub struct Optimizer<'a> {
 }
 
 impl<'a> Optimizer<'a> {
-    /// デフォルト構成（preset_fast: 2ms制限）で作成
+    /// `デフォルト構成（preset_fast`: 2ms制限）で作成
+    #[must_use] 
     pub fn new(input: &'a ProblemInput) -> Self {
         Self { 
             input,
@@ -52,43 +53,51 @@ impl<'a> Optimizer<'a> {
     }
 
     /// 設定を指定して作成
+    #[must_use] 
     pub fn new_with_config(input: &'a ProblemInput, config: OptimizerConfig) -> Self {
         Self { input, config }
     }
 
     /// 【プリセット】Web同期 / 低遅延向け（2.0ms / 100,000 nodes）
+    #[must_use] 
     pub fn preset_fast(mut self) -> Self {
         self.config = OptimizerConfig::preset_fast();
         self
     }
 
     /// 【プリセット】バッチ処理・高品質追求向け（100ms / 1,000,000 nodes）
+    #[must_use] 
     pub fn preset_accurate(mut self) -> Self {
         self.config = OptimizerConfig::preset_accurate();
         self
     }
 
     /// 【プリセット】厳密解追求向け（時間無制限）
+    #[must_use] 
     pub fn preset_exact(mut self) -> Self {
         self.config = OptimizerConfig::preset_exact();
         self
     }
 
+    #[must_use] 
     pub fn with_strategy(mut self, strategy: SolverStrategy) -> Self {
         self.config.strategy = strategy;
         self
     }
 
+    #[must_use] 
     pub fn with_time_limit_ms(mut self, limit_ms: f64) -> Self {
         self.config.time_limit_ms = Some(limit_ms);
         self
     }
 
+    #[must_use] 
     pub fn with_max_nodes(mut self, max_nodes: u64) -> Self {
         self.config.max_nodes = Some(max_nodes);
         self
     }
 
+    #[must_use] 
     pub fn with_top_k(mut self, k: usize) -> Self {
         self.config.top_k = Some(k);
         self
@@ -102,8 +111,7 @@ impl<'a> Optimizer<'a> {
         if item_count > MAX_SUPPORTED_ITEMS {
             return Err(OptimizeError::InvalidInput {
                 message: format!(
-                    "Item count ({}) exceeds the maximum supported limit of {} items. Please pre-filter candidates.",
-                    item_count, MAX_SUPPORTED_ITEMS
+                    "Item count ({item_count}) exceeds the maximum supported limit of {MAX_SUPPORTED_ITEMS} items. Please pre-filter candidates."
                 ),
             });
         }
@@ -217,6 +225,7 @@ pub fn solve_branchless_dp_core(input: &ProblemInput) -> Result<DpResult, String
     })
 }
 
+#[must_use] 
 pub fn compile_to_3sat_core(input: &ProblemInput) -> SatReductionResult {
     let target_val = input.target_value.unwrap_or(0);
     let config = CompilerConfig::default();
@@ -237,6 +246,7 @@ pub fn compile_to_3sat_core(input: &ProblemInput) -> SatReductionResult {
     }
 }
 
+#[must_use] 
 pub fn solve_branch_and_bound_core(input: &ProblemInput) -> BnbResult {
     let timer = Timer::start();
 
@@ -261,6 +271,7 @@ pub fn solve_branch_and_bound_core(input: &ProblemInput) -> BnbResult {
     }
 }
 
+#[must_use] 
 pub fn analyze_infeasibility_core(input: &ProblemInput, bnb_best_value: u32) -> ConflictReport {
     let analyzer = InfeasibilityAnalyzer::new(
         &input.items,

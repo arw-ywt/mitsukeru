@@ -33,6 +33,7 @@ pub struct ProblemInput {
 }
 
 impl ProblemInput {
+    #[must_use] 
     pub fn new(
         items: Vec<Item>,
         capacities: Vec<u32>,
@@ -71,6 +72,7 @@ impl Default for OptimizerConfig {
 
 impl OptimizerConfig {
     /// [Preset] Ultra-fast mode optimized for synchronous Web / WASM environments (default, 2.0 ms timeout).
+    #[must_use] 
     pub fn preset_fast() -> Self {
         Self {
             strategy: SolverStrategy::Mixed,
@@ -81,6 +83,7 @@ impl OptimizerConfig {
     }
 
     /// [Preset] High-quality batch processing mode (100 ms timeout, up to 1M nodes).
+    #[must_use] 
     pub fn preset_accurate() -> Self {
         Self {
             strategy: SolverStrategy::Mixed,
@@ -91,6 +94,7 @@ impl OptimizerConfig {
     }
 
     /// [Preset] Exact solution mode with unbounded search time and complete optimality proof.
+    #[must_use] 
     pub fn preset_exact() -> Self {
         Self {
             strategy: SolverStrategy::Mixed,
@@ -290,7 +294,7 @@ impl std::fmt::Display for OptimizeError {
                 report.logical_chain_conflicts.len(),
                 report.capacity_conflicts.len()
             ),
-            OptimizeError::InvalidInput { message } => write!(f, "Invalid input: {}", message),
+            OptimizeError::InvalidInput { message } => write!(f, "Invalid input: {message}"),
         }
     }
 }

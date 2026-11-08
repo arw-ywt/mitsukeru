@@ -11,7 +11,7 @@ use mitsukeru::{BranchAndBoundSolver, ProblemInput, Optimizer};
 
 #[path = "../tests/common/mod.rs"]
 mod common;
-use common::*;
+use common::{test_a, test_b, test_c, test_d, test_e, test_f, test_g};
 
 fn bench_solver_instances(c: &mut Criterion) {
     let mut group = c.benchmark_group("solvers_suite");
@@ -30,8 +30,8 @@ fn bench_solver_instances(c: &mut Criterion) {
         let prefix = if problem.name.starts_with("Test") {
             problem.name.split('(').next().unwrap_or(problem.name).trim().replace(' ', "_")
         } else {
-            let letter = (b'A' + idx as u8) as char;
-            format!("Test_{}", letter)
+            let letter = (b'A' + u8::try_from(idx)) as char;
+            format!("Test_{letter}")
         };
         let id = format!("{}_{}items", prefix, problem.items.len());
 
@@ -43,7 +43,7 @@ fn bench_solver_instances(c: &mut Criterion) {
                     black_box(&p.rules),
                 );
                 solver.solve()
-            })
+            });
         });
 
         let input = ProblemInput {
@@ -57,7 +57,7 @@ fn bench_solver_instances(c: &mut Criterion) {
             b.iter(|| {
                 let optimizer = Optimizer::new(black_box(inp));
                 optimizer.solve()
-            })
+            });
         });
 
         group.bench_with_input(BenchmarkId::new("Opt_Pure", &id), &input, |b, inp| {
@@ -65,7 +65,7 @@ fn bench_solver_instances(c: &mut Criterion) {
                 let optimizer = Optimizer::new(black_box(inp))
                     .with_strategy(mitsukeru::SolverStrategy::Pure);
                 optimizer.solve()
-            })
+            });
         });
 
         group.bench_with_input(BenchmarkId::new("Opt_Info", &id), &input, |b, inp| {
@@ -73,7 +73,7 @@ fn bench_solver_instances(c: &mut Criterion) {
                 let optimizer = Optimizer::new(black_box(inp))
                     .with_strategy(mitsukeru::SolverStrategy::Heuristic);
                 optimizer.solve()
-            })
+            });
         });
     }
 

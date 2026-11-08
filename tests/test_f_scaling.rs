@@ -81,8 +81,7 @@ fn test_f_scale_sweep() {
 
             assert!(
                 solution.best_value > 0,
-                "Failed to find positive solution for n={}",
-                n
+                "Failed to find positive solution for n={n}"
             );
         }
         println!("-----------------------------------------------------------------------------------------------------");

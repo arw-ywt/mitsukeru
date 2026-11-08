@@ -10,6 +10,7 @@ pub struct Flat2dDpSolver {
 }
 
 impl Flat2dDpSolver {
+    #[must_use] 
     pub fn new(cap1: u32, cap2: u32) -> Self {
         let c1 = cap1 as usize;
         let c2 = cap2 as usize;
@@ -22,7 +23,7 @@ impl Flat2dDpSolver {
         }
     }
 
-    #[inline(always)]
+    
     fn get_index(&self, w1: usize, w2: usize) -> usize {
         w1 * (self.cap2 + 1) + w2
     }
@@ -108,6 +109,7 @@ impl Flat2dDpSolver {
         (best_value, selected_ids)
     }
     
+    #[must_use] 
     pub fn allocated_bytes(&self) -> (usize, usize, usize) {
         let table_bytes = self.table.capacity() * std::mem::size_of::<u32>();
         let history_bytes = self.decision_history.capacity() * std::mem::size_of::<u64>();

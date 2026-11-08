@@ -43,7 +43,6 @@ pub struct Optimizer<'a> {
 }
 
 impl<'a> Optimizer<'a> {
-    /// `デフォルト構成（preset_fast`: 2ms制限）で作成
     #[must_use] 
     pub fn new(input: &'a ProblemInput) -> Self {
         Self { 
@@ -52,27 +51,23 @@ impl<'a> Optimizer<'a> {
         }
     }
 
-    /// 設定を指定して作成
     #[must_use] 
     pub fn new_with_config(input: &'a ProblemInput, config: OptimizerConfig) -> Self {
         Self { input, config }
     }
 
-    /// 【プリセット】Web同期 / 低遅延向け（2.0ms / 100,000 nodes）
     #[must_use] 
     pub fn preset_fast(mut self) -> Self {
         self.config = OptimizerConfig::preset_fast();
         self
     }
 
-    /// 【プリセット】バッチ処理・高品質追求向け（100ms / 1,000,000 nodes）
     #[must_use] 
     pub fn preset_accurate(mut self) -> Self {
         self.config = OptimizerConfig::preset_accurate();
         self
     }
 
-    /// 【プリセット】厳密解追求向け（時間無制限）
     #[must_use] 
     pub fn preset_exact(mut self) -> Self {
         self.config = OptimizerConfig::preset_exact();
@@ -102,7 +97,14 @@ impl<'a> Optimizer<'a> {
         self.config.top_k = Some(k);
         self
     }
-    
+
+    /// Optimizes the problem instance and calculates the optimal solution.
+    ///
+    /// # Errors
+    ///
+    /// Returns an [`OptimizeError`] in the following cases:
+    /// - If the number of items exceeds the upper limit (`MAX_SUPPORTED_ITEMS`) ([`OptimizeError::InvalidInput`]).
+    /// - If the problem is determined to be infeasible—due to circular or contradictory dependencies, capacity violations, or an inability to reach the target value ([`OptimizeError::Infeasible`]).
     pub fn solve(&self) -> Result<Solution, OptimizeError> {
         let timer = Timer::start();
         let item_count = self.input.items.len();
@@ -197,7 +199,16 @@ impl<'a> Optimizer<'a> {
     }
 }
 
+/// Solves the problem exactly using 2D dynamic programming (Flat 2D DP).
+///
+/// # Errors
+///
+/// Returns an error message if there are fewer than two capacity constraints.
 pub fn solve_branchless_dp_core(input: &ProblemInput) -> Result<DpResult, String> {
+    
+    const BYTES_PER_MB: usize = 1024 * 1024;
+    const BYTES_PER_MB_F64: f64 = 1024.0 * 1024.0;
+
     if input.capacities.len() < 2 {
         return Err("At least 2 capacities required for 2D DP".to_string());
     }
@@ -206,9 +217,12 @@ pub fn solve_branchless_dp_core(input: &ProblemInput) -> Result<DpResult, String
     let c2 = input.capacities[1] as usize;
     let n = input.items.len();
     let grid_size = (c1 + 1) * (c2 + 1);
+
     let total_bytes = (grid_size * std::mem::size_of::<u32>()) 
-    + (n * grid_size * std::mem::size_of::<u8>());
-    let memory_mb = total_bytes as f64 / (1024.0 * 1024.0);
+        + (n * grid_size * std::mem::size_of::<u8>());
+    let mb_whole = u32::try_from(total_bytes / BYTES_PER_MB).unwrap_or(u32::MAX);
+    let mb_rem = u32::try_from(total_bytes % BYTES_PER_MB).unwrap_or(0);
+    let memory_mb = f64::from(mb_whole) + (f64::from(mb_rem) / BYTES_PER_MB_F64);
 
     let timer = Timer::start();
 
@@ -283,8 +297,11 @@ pub fn analyze_infeasibility_core(input: &ProblemInput, bnb_best_value: u32) -> 
     analyzer.analyze()
 }
 
-
-
+/// Performs optimization based on the input data and settings.
+///
+/// # Errors
+///
+/// Returns a [`JsValue`] error if serialization or deserialization of the JS object fails, or if the optimization process fails.
 #[wasm_bindgen]
 pub fn optimize(input_value: JsValue, config_value: Option<JsValue>) -> Result<JsValue, JsValue> {
     let (problem, config) = if let Some(cfg_js) = config_value.filter(|v| !v.is_undefined() && !v.is_null()) {
@@ -308,6 +325,11 @@ pub fn optimize(input_value: JsValue, config_value: Option<JsValue>) -> Result<J
     }
 }
 
+/// Invokes the 2D dynamic programming core solver.
+///
+/// # Errors
+///
+/// Returns a [`JsValue`] if an error occurs, such as a failure to deserialize a JS object or an insufficient capacity constraint.
 #[wasm_bindgen]
 pub fn solve_branchless_dp(input_value: JsValue) -> Result<JsValue, JsValue> {
     let input: ProblemInput = serde_wasm_bindgen::from_value(input_value)?;
@@ -316,6 +338,11 @@ pub fn solve_branchless_dp(input_value: JsValue) -> Result<JsValue, JsValue> {
     Ok(serde_wasm_bindgen::to_value(&res)?)
 }
 
+/// Reduces the input problem to 3-SAT (in DIMACS CNF format).
+///
+/// # Errors
+///
+/// Returns a [`JsValue`] if the serialization or deserialization of a JS object fails.
 #[wasm_bindgen]
 pub fn compile_to_3sat(input_value: JsValue) -> Result<JsValue, JsValue> {
     let input: ProblemInput = serde_wasm_bindgen::from_value(input_value)?;
@@ -323,6 +350,11 @@ pub fn compile_to_3sat(input_value: JsValue) -> Result<JsValue, JsValue> {
     Ok(serde_wasm_bindgen::to_value(&res)?)
 }
 
+/// Performs a search using the Branch and Bound method.
+///
+/// # Errors
+///
+/// Returns a [`JsValue`] if the serialization or deserialization of a JS object fails.
 #[wasm_bindgen]
 pub fn solve_branch_and_bound(input_value: JsValue) -> Result<JsValue, JsValue> {
     let input: ProblemInput = serde_wasm_bindgen::from_value(input_value)?;
@@ -330,6 +362,11 @@ pub fn solve_branch_and_bound(input_value: JsValue) -> Result<JsValue, JsValue> 
     Ok(serde_wasm_bindgen::to_value(&res)?)
 }
 
+/// Performs static analysis to identify constraint conflicts or causes of infeasibility.
+///
+/// # Errors
+///
+/// Returns a [`JsValue`] if the serialization or deserialization of a JS object fails.
 #[wasm_bindgen]
 pub fn analyze_infeasibility(input_value: JsValue, bnb_best_value: u32) -> Result<JsValue, JsValue> {
     let input: ProblemInput = serde_wasm_bindgen::from_value(input_value)?;
@@ -337,6 +374,11 @@ pub fn analyze_infeasibility(input_value: JsValue, bnb_best_value: u32) -> Resul
     Ok(serde_wasm_bindgen::to_value(&res)?)
 }
 
+/// Performs initial solution prediction using graph heuristics.
+///
+/// # Errors
+///
+/// Returns a [`JsValue`] if serialization or deserialization of a JS object fails.
 #[wasm_bindgen]
 pub fn predict_heuristics(input_value: JsValue) -> Result<JsValue, JsValue> {
     let input: ProblemInput = serde_wasm_bindgen::from_value(input_value)?;
@@ -350,10 +392,10 @@ pub use serde_json;
 
 #[cfg(test)]
 mod tests {
-use super::*;
+    use super::*;
 
-#[test]
-fn test_optimizer_high_level_api() {
+    #[test]
+    fn test_optimizer_high_level_api() {
     let input = ProblemInput {
         items: vec![
             Item { id: 0, name: "A".into(), weights: vec![10], value: 100 },

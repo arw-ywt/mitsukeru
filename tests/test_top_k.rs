@@ -25,7 +25,7 @@ fn test_top_3_candidates_generation() {
     println!("Upper Bound       : {:.1} pt", solution.upper_bound);
 
     assert_eq!(solution.best_value, 550);
-    assert_eq!(solution.optimality_gap, 0.0, "Optimal solution must have 0% gap");
+    assert!(solution.optimality_gap.abs() <= f64::EPSILON, "Optimal solution must have 0% gap");
 
     let candidates = solution.top_candidates.expect("Top candidates must be present");
     assert!(

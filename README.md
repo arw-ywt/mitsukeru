@@ -18,22 +18,23 @@ mitsukeru
 **A zero-C-dependency, reproducible constraint optimization engine written in 100% pure Rust.**
 <br/>
 Pass items and rules as data instead of writing complex `if/else` branching. Finds optimal combinations in microseconds and automatically explains why constraints cannot be satisfied.
-<br/>
-On [this page](/), where this engine has been implemented, you can try it out immediately on your own device.
+
 
 - [Installation](#installation)
 - [Quick Start](#quick-start)
-- [What you gain](#what-you-gain)
-- [When to use](#)
-- [When NOT to use](#)
-- [Quickstart](#)
-  - [Usage in Browser](#)
+  - [1. Define the Problem & Run](#1-define-the-problem--run)
+  - [2. Output](#2-output)
+- [Features](#features)
+- [When to use](#when-to-use)
+- [When NOT to use](#when-not-to-use)
+- [Options](#options)
+  - [Presets](#presets)
+  - [Builder Methods](#builder-methods)
 - [Related Projects](#related-projects)
   - [Spaghetti vs. Mitsukeru](#spaghetti-vs-mitsukeru)
   - [The Needle in the Web](#the-needle-in-the-web)
   - [Societal Scale Optimization](#societal-scale-optimization)
-- [](#)
-
+- [License](#license)
 
 ## Installation
 
@@ -98,8 +99,6 @@ try {
 }
 ```
 
-### 3.Output (When Constraints Clash)
-
 If the rules are logically impossible to satisfy, `mitsukeru` instantly generates an actionable human-readable report instead of failing silently:
 
 ```json
@@ -121,8 +120,7 @@ If the rules are logically impossible to satisfy, `mitsukeru` instantly generate
 }
 ```
 
-
-Want to see more examples? [Here](/), you can try out more examples for yourself on your own device.
+Want to see more examples? [Here](https://arw-ywt.github.io/mitsukeru/), you can try out interactive demos on your own device.
 
 ## Features
 
@@ -146,57 +144,66 @@ Want to see more examples? [Here](/), you can try out more examples for yourself
 
   Zero C/C++ native dependencies. It compiles cleanly to `wasm32-unknown-unknown`, allowing you to run high-performance constraint optimization directly in browsers, Node.js, or serverless Edge environments.
 
-## When to use
+## When to Use
 
-Want to see it in action first? Try the Demo on GitHub Pages.
+### Rule Management and Architecture
+- Writing complex conditional selection logic without nested `if/else` or `switch/case` statements
+- Maintaining and updating business constraints regularly through data schemas rather than code deployments
+- Decoupling selection criteria, eligibility requirements, and limits from application code
 
-Finding optimal combinations based on user-selected options (See Demo)
-Simplifying conditional logic caused by frequent option or specification changes (See Demo)
-Running under strict security or offline environments where external servers are unavailable (See Demo)
+### Solution Requirements
+- Finding multiple diverse and high-quality alternatives
+- Considering transitive and chained logical constraints where item selections trigger subsequent requirements or mutual exclusions
+- Analyzing the root cause of infeasible inputs and identifying the exact chain of conflicting constraints
 
-## When NOT to use
+### Deployment and Performance
+- Executing directly on the client side in a browser or inside serverless and edge environments
+- Deploying as a self-contained, zero-dependency library without external runtimes or external solver processes
+- Obtaining mathematically guaranteed optimal decisions within sub-millisecond execution budgets
 
-Massive industrial scheduling (use HiGHS or Google OR-Tools instead etc.)
-Continuous / Floating-point optimization (use scipy.optimize etc.)
+## When NOT to Use
 
-## Configuration & Options
+- Solving problems with thousands to tens of thousands of candidate items that require general-purpose cutting-plane methods or column generation
+- Optimizing continuous or fractional variables, such as percentage allocations or linear programming models
+- Handling problems with high-dimensional capacity limits (e.g., ten or more simultaneous resource dimensions) where surrogate relaxation bounds become loose
+- Running offline batch processes where execution latency, memory footprint, and external runtime dependencies are not operational constraints
 
-You can customize the solver's behavior using built-in presets or fluent builder methods:
+## Options
 
-- **Presets**:
-  - `Optimizer::new(&input).preset_fast()` (Default): 2.0ms timeout, optimized for real-time web/sync usage.
-  - `Optimizer::new(&input).preset_accurate()`: 100ms timeout, 1,000,000 nodes for batch/high-quality requirements.
-  - `Optimizer::new(&input).preset_exact()`: Time-unlimited, guarantees an exact optimal proof.
-- **Builder Methods**:
-  - `.with_strategy(SolverStrategy::Pure | Info | Mixed)`: Explicitly choose the search strategy.
-  - `.with_time_limit_ms(50.0)`: Set a custom wall-clock time limit.
-  - `.with_max_nodes(500_000)`: Set an upper bound on explored search nodes.
-  - `.with_top_k(3)`: Retrieve the top-K alternative ranked solutions.
+You can configure solver execution using presets or fluent builder methods on the Optimizer instance.
 
-## How It Works
+### Presets
+- `Optimizer::new(&input).preset_fast()` (Default)
+  Configured for low-latency and synchronous execution. Applies a 2.0 ms wall-clock limit and a 100,000 explored node cap.
+- `Optimizer::new(&input).preset_accurate()`
+  Configured for higher exploration depth. Applies a 100.0 ms wall-clock limit and a 1,000,000 explored node cap.
+- `Optimizer::new(&input).preset_exact()`
+  Removes time limits and node constraints to compute and prove the exact mathematical optimum.
 
-1. **Bit-Parallel Exact Core (`BitSet<const W>`)**:
-   Core branch-and-bound operations and transitive closures are powered by fixed-size, stack-allocated bitsets (`const W` generics), eliminating heap allocations (`malloc`) in hot loops and enabling LLVM auto-vectorization.
-2. **Constraint Graph & Structural Heuristics**:
-   For complex problems, the engine analyzes the topology of requirements and mutual exclusions to compute structural heuristics, warm-starting the exact solver to bypass redundant branches.
-3. **Infeasibility Diagnostics**:
-   When constraints clash, transitive closure matrices instantly pinpoint the root causes—tracing logical chain paths and multi-dimensional bundle capacity overflows without breaking a sweat.
+### Builder Methods
+- `.with_strategy(SolverStrategy::Pure | Heuristic | Mixed)`
+  Explicitly sets the search mode. `Pure` executes standard branch-and-bound search, `Heuristic` initializes search state using graph-based predictive embeddings, and `Mixed` automatically selects between them based on rule density and item count.
+- `.with_time_limit_ms(limit_ms: f64)`
+  Sets a custom wall-clock execution limit in milliseconds. When exceeded, the solver returns the best feasible solution found along with an optimality gap.
+- `.with_max_nodes(max_nodes: u64)`
+  Sets an upper bound on explored search tree nodes.
+- `.with_top_k(k: usize)`
+  Configures the engine to record and return up to k distinct, high-scoring candidate solutions ordered by objective value.
 
 ## Related Projects
 
 Below, we present practical examples of how this engine is used.
 
-### [Spaghetti vs. Mitsukeru](/)
+### [Spaghetti vs. Mitsukeru](https://arw-ywt.github.io/mitsukeru/examples/spaghetti/)
 
-Easily replace `if/else` statements, `select` constructs, `json-rules-engine`, or tools like HiGHS and Google OR-Tools using `mitsukeru`.
+Easily replace `if/else` or `switch/case` statements, `json-rules-engine`, or tools like HiGHS and Google OR-Tools using `mitsukeru`.
 
 
-### [The Needle in the Web](/)
-
+### [The Needle in the Web](https://arw-ywt.github.io/mitsukeru/examples/needle/)
 Build a personalized set of offers or product features that fits a visitor’s budget and technical constraints. `mitsukeru` selects a high-value combination, respects dependencies and incompatibilities, and can return alternative plans for the user to compare. Run the optimization in the browser with WebAssembly; your application supplies the candidate scores and business rules.
 
 
-### [Societal Scale Optimization](/)
+### [Societal Scale Optimization](https://arw-ywt.github.io/mitsukeru/examples/societal/)
 
 Help planners compare portfolios of community support actions when budgets, staff, and supplies are limited. Encode operational prerequisites and incompatible assignments as explicit rules, then rank feasible plans by a transparent impact score. `mitsukeru` can support repeatable planning at a defined regional or operational scope; people remain responsible for setting priorities and reviewing the outcomes.
 
@@ -204,4 +211,3 @@ Help planners compare portfolios of community support actions when budgets, staf
 ## License
 
 This project is licensed under the [MIT License](LICENSE).
-

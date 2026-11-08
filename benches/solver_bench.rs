@@ -30,7 +30,7 @@ fn bench_solver_instances(c: &mut Criterion) {
         let prefix = if problem.name.starts_with("Test") {
             problem.name.split('(').next().unwrap_or(problem.name).trim().replace(' ', "_")
         } else {
-            let letter = (b'A' + u8::try_from(idx)) as char;
+            let letter = (b'A' + u8::try_from(idx).unwrap()) as char;
             format!("Test_{letter}")
         };
         let id = format!("{}_{}items", prefix, problem.items.len());
@@ -68,7 +68,7 @@ fn bench_solver_instances(c: &mut Criterion) {
             });
         });
 
-        group.bench_with_input(BenchmarkId::new("Opt_Info", &id), &input, |b, inp| {
+        group.bench_with_input(BenchmarkId::new("Opt_Heuristic", &id), &input, |b, inp| {
             b.iter(|| {
                 let optimizer = Optimizer::new(black_box(inp))
                     .with_strategy(mitsukeru::SolverStrategy::Heuristic);

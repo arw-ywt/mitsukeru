@@ -1,0 +1,92 @@
+name: CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-D warnings"
+
+jobs:
+  check-and-lint:
+    name: Code Formatting & Strict Linting
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Check code formatting
+        run: cargo fmt --all --check
+
+      - name: Run Clippy (Pedantic checks)
+        run: cargo clippy --all-targets -- -D warnings -W clippy::pedantic
+
+  test-native:
+    name: Native Tests (Debug & Release)
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Run unit & integration tests (Debug)
+        run: cargo test --all-targets
+
+      - name: Run all tests (Release Mode)
+        run: cargo test --all-targets --release
+
+  build-wasm:
+    name: WebAssembly & Package Verification
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Build WebAssembly (bundler target)
+        run: wasm-pack build --release --target bundler
+
+      - name: Verify npm package contents
+        run: |
+          cd pkg
+          npm pack --dry-run
+
+      - name: Verify Cargo packaging (Crates.io dry-run)
+        run: cargo package --no-verify

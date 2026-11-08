@@ -257,7 +257,8 @@ impl<'a, const W: usize> ExactSolverCore<'a, W> {
         }
 
         let mut bound = f64::from(current_val);
-        let mut rem_budget = min_remaining_ratio * (self.capacities.len() as f64);
+        let cap_len = u32::try_from(self.capacities.len()).unwrap_or(u32::MAX);
+        let mut rem_budget = min_remaining_ratio * f64::from(cap_len);
 
         for it in &self.sorted_items[start_idx..] {
             if it.surrogate_weight <= rem_budget {
@@ -285,7 +286,7 @@ impl<'a, const W: usize> ExactSolverCore<'a, W> {
                 return;
             }
 
-        if (self.explored_nodes & 4095) == 0 
+        if self.explored_nodes.trailing_zeros() >= 12
             && let (Some(start), Some(limit)) = (self.start_time, self.time_limit_ms) 
                 && start.elapsed().as_secs_f64() * 1000.0 >= limit {
                     self.timed_out = true;
@@ -512,12 +513,12 @@ mod tests {
     #[test]
     fn test_fractional_bound_prunes_effectively() {
         let mut items = Vec::new();
-        for i in 0..20 {
+        for i in 0u32..20 {
             items.push(Item {
-                id: i,
+                id: usize::try_from(i).unwrap(),
                 name: format!("Item_{i}"),
                 weights: vec![10],
-                value: (i as u32 + 1) * 10,
+                value: (i + 1) * 10,
             });
         }
         let capacities = vec![30];

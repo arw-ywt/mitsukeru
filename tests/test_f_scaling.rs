@@ -1,4 +1,5 @@
 // tests/test_f_scaling.rs
+// cargo test --test test_f_scaling --release -- --nocapture
 
 mod common;
 use common::test_f;
@@ -37,7 +38,7 @@ fn test_f_scale_sweep() {
         for &strategy in &[SolverStrategy::Pure, SolverStrategy::Heuristic, SolverStrategy::Mixed] {
             let strat_label = match strategy {
                 SolverStrategy::Pure => "Pure",
-                SolverStrategy::Heuristic => "Info",
+                SolverStrategy::Heuristic => "Heuristic",
                 SolverStrategy::Mixed => "Mixed",
             };
 
@@ -55,7 +56,9 @@ fn test_f_scale_sweep() {
 
             let secs = elapsed_ms / 1000.0;
             let mnodes_per_sec = if secs > f64::EPSILON {
-                (solution.explored_nodes as f64) / secs / 1_000_000.0
+                let mnodes = u32::try_from(solution.explored_nodes / 1_000_000).unwrap_or(u32::MAX);
+                let rem = u32::try_from(solution.explored_nodes % 1_000_000).unwrap_or(0);
+                (f64::from(mnodes) + (f64::from(rem) / 1_000_000.0)) / secs
             } else {
                 0.0
             };

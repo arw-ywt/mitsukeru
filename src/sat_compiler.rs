@@ -1,5 +1,6 @@
 // sat_compiler.rs
 
+use std::fmt::Write;
 use crate::model::{BusinessRule, Item};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -146,6 +147,13 @@ impl CnfBuilder {
 pub struct SatCompiler;
 
 impl SatCompiler {
+    /// Allocates a new variable and returns its identifier.
+    /// 
+    /// # Panics
+    ///
+    /// Panics under the following conditions:
+    /// - The variable management index (`next_var`) of the internal CNF builder is invalid (less than 1).
+    /// - The total number of generated variables exceeds the representable range of the `usize` type (i.e., an overflow occurs).
     #[must_use] 
     pub fn compile(
         items: &[Item],
@@ -197,12 +205,24 @@ impl SatCompiler {
             }
         }
 
-        let num_vars = (builder.next_var - 1) as usize;
+        assert!(
+            builder.next_var >= 1,
+            "Financial/SAT Error: next_var must be at least 1, but got {}",
+            builder.next_var
+        );
+
+        let raw_num_vars = builder.next_var - 1;
+        let num_vars = usize::try_from(raw_num_vars).unwrap_or_else(|_| {
+            panic!("Financial/SAT Error: variable count overflowed usize: {raw_num_vars}")
+        });
+
         let num_clauses = builder.clauses.len();
-        let mut dimacs = format!("p cnf {num_vars} {num_clauses}\n");
+        let mut dimacs = String::new();
+        let _ = writeln!(dimacs, "p cnf {num_vars} {num_clauses}");
+        
         for c in &builder.clauses {
             for lit in c {
-                dimacs.push_str(&format!("{} ", lit.0));
+                let _ = write!(dimacs, "{} ", lit.0);
             }
             dimacs.push_str("0\n");
         }

@@ -7,6 +7,12 @@ license = "MIT"
 repository = "https://github.com/arw-ywt/mitsukeru"
 keywords = ["knapsack", "optimization", "sat", "solver", "wasm"]
 categories = ["algorithms", "science", "wasm"]
+include = [
+    "src/**/*",
+    "Cargo.toml",
+    "README.md",
+    "LICENSE",
+]
 
 [lib]
 crate-type = ["cdylib", "rlib"]

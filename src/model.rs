@@ -54,7 +54,7 @@ impl ProblemInput {
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(default)]
 pub struct OptimizerConfig {
-    /// The search strategy (e.g., Pure, Info, Mixed).
+    /// The search strategy (e.g., Pure, Heuristic, Mixed).
     pub strategy: SolverStrategy,
     /// The execution time limit in milliseconds.
     pub time_limit_ms: Option<f64>,
@@ -200,7 +200,7 @@ pub struct Solution {
     pub explored_nodes: u64,
     /// Indicates whether the solution is mathematically optimal or an approximation.
     pub status: SolutionStatus,
-    /// The actual search strategy employed during optimization (records whether `Pure` or `Info` was chosen under `Mixed` mode).
+    /// The actual search strategy employed during optimization (records whether `Pure` or `Heuristic` was chosen under `Mixed` mode).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub strategy_used: Option<SolverStrategy>,
     /// Optional list of top-ranked alternative solutions (Ranked 1st to K-th).
@@ -321,7 +321,7 @@ pub struct SatReductionResult {
     pub variable_map: Vec<String>,
 }
 
-/// ## MIP Solver Result
+/// ## Branch and Bound Result
 /// Direct output returned by the standalone Branch-and-Bound solver.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct BnbResult {

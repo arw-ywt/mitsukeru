@@ -1,4 +1,6 @@
 // tests/schema_drift_test.rs
+// cargo test --test schema_drift_test
+
 use mitsukeru::{OptimizeError, OptimizeRequest, ProblemInput, Solution};
 use std::fs;
 

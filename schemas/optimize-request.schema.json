@@ -174,7 +174,7 @@
           "minimum": 0.0
         },
         "strategy": {
-          "description": "The search strategy (e.g., Pure, Info, Mixed).",
+          "description": "The search strategy (e.g., Pure, Heuristic, Mixed).",
           "default": "mixed",
           "allOf": [
             {
@@ -184,7 +184,7 @@
         },
         "time_limit_ms": {
           "description": "The execution time limit in milliseconds.",
-          "default": 50.0,
+          "default": 2.0,
           "type": [
             "number",
             "null"

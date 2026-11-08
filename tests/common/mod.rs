@@ -6,7 +6,6 @@ use std::collections::BTreeSet;
 
 #[derive(Clone)]
 pub struct ProblemInstance {
-    #[allow(dead_code)]
     pub name: &'static str,
     pub items: Vec<Item>,
     pub capacities: Vec<u32>,
@@ -168,9 +167,9 @@ pub fn test_e() -> ProblemInstance {
 
 pub fn test_f(n: usize) -> ProblemInstance {
     let items: Vec<Item> = (0..n).map(|i| {
-        let base_w1 = 120 + ((i * 37) % 70) as u32;
-        let base_w2 = 100 + ((i * 41) % 60) as u32;
-        let val = 60 + ((i * 29) % 35) as u32;
+        let base_w1 = 120 + u32::try_from((i * 37) % 70).unwrap();
+        let base_w2 = 100 + u32::try_from((i * 41) % 60).unwrap();
+        let val = 60 + u32::try_from((i * 29) % 35).unwrap();
         Item {
             id: i,
             name: format!("F_{i:03}"),
@@ -179,9 +178,10 @@ pub fn test_f(n: usize) -> ProblemInstance {
         }
     }).collect();
 
-    let cap_w1 = (n as u32) * 70;
-    let cap_w2 = (n as u32) * 58;
-    let target_val = (n as u32) * 33;
+    let n_u32 = u32::try_from(n).unwrap();
+    let cap_w1 = n_u32 * 70;
+    let cap_w2 = n_u32 * 58;
+    let target_val = n_u32 * 33;
 
     let mut rules = Vec::new();
     for i in (0..n.saturating_sub(2)).step_by(4) {
@@ -232,9 +232,9 @@ pub fn test_g() -> ProblemInstance {
     }
 
     for i in 12..28 {
-        let w1 = 70 + ((i * 19) % 40) as u32;
-        let w2 = 60 + ((i * 23) % 40) as u32;
-        let val = 60 + ((i * 13) % 35) as u32;
+        let w1 = 70 + u32::try_from((i * 19) % 40).unwrap();
+        let w2 = 60 + u32::try_from((i * 23) % 40).unwrap();
+        let val = 60 + u32::try_from((i * 13) % 35).unwrap();
         items.push(Item {
             id: i,
             name: format!("GEN_{i:02}"),
@@ -294,9 +294,9 @@ pub fn test_h() -> ProblemInstance {
     }
 
     for i in 20..40 {
-        let w1 = 70 + ((i * 17) % 50) as u32;
-        let w2 = 60 + ((i * 23) % 40) as u32;
-        let val = 50 + ((i * 13) % 40) as u32;
+        let w1 = 70 + u32::try_from((i * 17) % 50).unwrap();
+        let w2 = 60 + u32::try_from((i * 23) % 40).unwrap();
+        let val = 50 + u32::try_from((i * 13) % 40).unwrap();
         items.push(Item {
             id: i,
             name: format!("GEN_{i:02}"),
@@ -359,9 +359,9 @@ pub fn test_i() -> ProblemInstance {
     }
 
     for i in 28..n {
-        let w1 = 50 + ((i * 17) % 40) as u32;
-        let w2 = 40 + ((i * 23) % 35) as u32;
-        let val = 40 + ((i * 13) % 30) as u32;
+        let w1 = 50 + u32::try_from((i * 17) % 40).unwrap();
+        let w2 = 40 + u32::try_from((i * 23) % 35).unwrap();
+        let val = 40 + u32::try_from((i * 13) % 30).unwrap();
         items.push(Item {
             id: i,
             name: format!("GEN_{i:02}"),
@@ -396,9 +396,9 @@ pub fn test_j() -> ProblemInstance {
     let mut items = Vec::new();
     let n = 40;
     for i in 0..n {
-        let w1 = 50 + ((i * 31) % 100) as u32;
-        let w2 = 50 + ((i * 37) % 100) as u32;
-        let val = 40 + ((i * 19) % 80) as u32;
+        let w1 = 50 + u32::try_from((i * 31) % 100).unwrap();
+        let w2 = 50 + u32::try_from((i * 37) % 100).unwrap();
+        let val = 40 + u32::try_from((i * 19) % 80).unwrap();
         items.push(Item {
             id: i,
             name: format!("PURE_{i:02}"),
@@ -464,9 +464,9 @@ pub fn test_l() -> ProblemInstance {
         });
     }
     for i in 20..n {
-        let w1 = 40 + ((i * 13) % 60) as u32;
-        let w2 = 40 + ((i * 17) % 60) as u32;
-        let val = 30 + ((i * 11) % 50) as u32;
+        let w1 = 40 + u32::try_from((i * 13) % 60).unwrap();
+        let w2 = 40 + u32::try_from((i * 17) % 60).unwrap();
+        let val = 30 + u32::try_from((i * 11) % 50).unwrap();
         items.push(Item {
             id: i,
             name: format!("CHAOS_{i:02}"),
@@ -508,9 +508,9 @@ pub fn test_m() -> ProblemInstance {
             opt_idx += 1;
             res
         } else {
-            let w1 = 45 + ((i * 7) % 20) as u32;
-            let w2 = 45 + ((i * 11) % 20) as u32;
-            let val = 25 + ((i * 3) % 15) as u32;
+            let w1 = 45 + u32::try_from((i * 7) % 20).unwrap();
+            let w2 = 45 + u32::try_from((i * 11) % 20).unwrap();
+            let val = 25 + u32::try_from((i * 3) % 15).unwrap();
             (w1, w2, val)
         };
 

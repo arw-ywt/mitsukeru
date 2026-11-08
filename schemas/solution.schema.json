@@ -53,7 +53,7 @@
       ]
     },
     "strategy_used": {
-      "description": "The actual search strategy employed during optimization (records whether `Pure` or `Info` was chosen under `Mixed` mode).",
+      "description": "The actual search strategy employed during optimization (records whether `Pure` or `Heuristic` was chosen under `Mixed` mode).",
       "anyOf": [
         {
           "$ref": "#/definitions/SolverStrategy"

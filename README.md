@@ -1,8 +1,11 @@
-<img src="https://raw.githubusercontent.com/arw-ywt/mitsukeru/main/assets/logo.png" alt="mitsukeru logo" width="120" />
 
 <h1 align="center">
 mitsukeru
 </h1>
+
+<div align="center">
+<img src="https://raw.githubusercontent.com/arw-ywt/mitsukeru/main/assets/logo.svg" alt="mitsukeru logo" width="500" />
+</div>
 
 [![CI](https://img.shields.io/github/actions/workflow/status/arw-ywt/mitsukeru/ci.yml?branch=main&label=CI&logo=github&style=flat-square)](https://github.com/arw-ywt/mitsukeru/actions)
 ![WebAssembly](https://img.shields.io/badge/WebAssembly-supported-654FF0?logo=webassembly&logoColor=white&style=flat-square)

@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>mitsukeru WASM Demo (Offline / Private)</title>
+  <style>
+    body { font-family: sans-serif; margin: 40px; line-height: 1.6; }
+    pre { background: #f4f4f4; padding: 15px; border-radius: 6px; overflow-x: auto; }
+    button { padding: 10px 20px; font-size: 16px; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <h1>mitsukeru WASM In-Browser Test</h1>
+  <p>npm / crates.io 非公開状態で、ローカルの WASM バイナリを直接実行しています。</p>
+  
+  <button id="run-btn">最適化を実行</button>
+
+  <h3>実行結果:</h3>
+  <pre id="output">「最適化を実行」ボタンを押してください...</pre>
+
+  <script type="module">
+    // 同一フォルダ内の pkg/mitsukeru.js から初期化関数と公開関数をインポート
+    import init, { optimize } from "./pkg/mitsukeru.js";
+
+    async function setup() {
+      const output = document.getElementById("output");
+      const btn = document.getElementById("run-btn");
+
+      try {
+        // 1. WASM の初期化（内部で mitsukeru_bg.wasm を fetch して読み込みます）
+        await init();
+        output.textContent = "WASM エンジンの読み込みに成功しました。実行可能です。";
+      } catch (err) {
+        output.textContent = "WASM の読み込みに失敗しました:\n" + err;
+        return;
+      }
+
+      btn.addEventListener("click", () => {
+        // 2. 問題の定義（Quick Start の例）
+        const problemData = {
+          items: [
+            { id: 0, name: "Pro Camera", weights: [10, 5], value: 500 },
+            { id: 1, name: "Carbon Tripod", weights: [3, 2], value: 120 },
+            { id: 2, name: "LED Light A", weights: [5, 3], value: 200 },
+            { id: 3, name: "LED Light B", weights: [5, 3], value: 210 }
+          ],
+          capacities: [20, 10], // [Max Budget, Max Weight]
+          rules: [
+            { type: "requires", from_id: 0, to_id: 1 }, // カメラには三脚が必須
+            { type: "conflicts", a_id: 2, b_id: 3 }     // ライトAとBは排他
+          ],
+          config: {
+            strategy: "mixed",
+            time_limit_ms: 2.0,
+            top_k: 2
+          }
+        };
+
+        const startTime = performance.now();
+
+        try {
+          // 3. WASM エンジンの実行！
+          const result = optimize(problemData);
+          const endTime = performance.now();
+
+          output.textContent = 
+            `=== 実行成功 (所要時間: ${(endTime - startTime).toFixed(3)} ms) ===\n\n` +
+            JSON.stringify(result, null, 2);
+
+        } catch (err) {
+          output.textContent = 
+            "=== 実行不能・矛盾検知 (Infeasible Report) ===\n\n" +
+            JSON.stringify(err, null, 2);
+        }
+      });
+    }
+
+    setup();
+  </script>
+</body>
+</html>

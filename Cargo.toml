@@ -9,10 +9,10 @@ keywords = ["knapsack", "optimization", "sat", "solver", "wasm"]
 categories = ["algorithms", "science", "wasm"]
 readme = "README.md"
 include = [
-    "src/**/*",
-    "Cargo.toml",
-    "README.md",
-    "LICENSE",
+    "/src/**/*",
+    "/Cargo.toml",
+    "/README.md",
+    "/LICENSE",
 ]
 
 [lib]

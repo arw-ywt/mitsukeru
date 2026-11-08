@@ -21,6 +21,18 @@ fn format_num(val: u64) -> String {
 
 #[test]
 fn test_f_scale_sweep() {
+    const STACK_SIZE: usize = 8 * 1024 * 1024;
+
+    let handler = std::thread::Builder::new()
+        .name("f_scale_sweep".to_string())
+        .stack_size(STACK_SIZE)
+        .spawn(run_f_scale_sweep_inner)
+        .expect("Failed to spawn sweep thread");
+
+    handler.join().expect("Test thread panicked or overflowed");
+}
+
+fn run_f_scale_sweep_inner() {
     println!(
         "\n====================================================================================================="
     );
@@ -38,7 +50,11 @@ fn test_f_scale_sweep() {
         "-----------------------------------------------------------------------------------------------------"
     );
 
-    let n_list = [16, 32, 64, 128, 256, 512, 1024, 2048];
+    let n_list = if cfg!(debug_assertions) {
+        vec![16, 32, 64, 128, 256]
+    } else {
+        vec![16, 32, 64, 128, 256, 512, 1024, 2048]
+    };
 
     for &n in &n_list {
         let prob = test_f(n);

@@ -55,7 +55,7 @@ impl<'a, const W: usize> ExactSolverCore<'a, W> {
                 value: val,
                 selected_item_ids: ids,
             });
-            self.candidates.sort_by(|a, b| b.value.cmp(&a.value));
+            self.candidates.sort_by_key(|a| std::cmp::Reverse(a.value));
             if self.candidates.len() > self.top_k {
                 self.candidates.truncate(self.top_k);
             }
@@ -197,7 +197,7 @@ impl<'a, const W: usize> ExactSolverCore<'a, W> {
                     value: self.best_value,
                     selected_item_ids: best_ids,
                 });
-                self.candidates.sort_by(|a, b| b.value.cmp(&a.value));
+                self.candidates.sort_by_key(|a| std::cmp::Reverse(a.value));
                 if self.candidates.len() > self.top_k {
                     self.candidates.truncate(self.top_k);
                 }

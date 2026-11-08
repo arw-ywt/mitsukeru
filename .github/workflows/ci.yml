@@ -13,6 +13,7 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
+  RUST_MIN_STACK: 8388608
 
 jobs:
   check-and-lint:
@@ -90,4 +91,4 @@ jobs:
           npm pack --dry-run
 
       - name: Verify Cargo packaging (Crates.io dry-run)
-        run: cargo package --no-verify
+        run: cargo package --no-verify --allow-dirty

@@ -1,7 +1,7 @@
 // sat_compiler.rs
 
-use std::fmt::Write;
 use crate::model::{BusinessRule, Item};
+use std::fmt::Write;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Literal(pub i32);
@@ -45,7 +45,7 @@ impl Default for CnfBuilder {
 }
 
 impl CnfBuilder {
-    #[must_use] 
+    #[must_use]
     pub fn new() -> Self {
         let mut builder = Self {
             next_var: 1,
@@ -148,13 +148,13 @@ pub struct SatCompiler;
 
 impl SatCompiler {
     /// Allocates a new variable and returns its identifier.
-    /// 
+    ///
     /// # Panics
     ///
     /// Panics under the following conditions:
     /// - The variable management index (`next_var`) of the internal CNF builder is invalid (less than 1).
     /// - The total number of generated variables exceeds the representable range of the `usize` type (i.e., an overflow occurs).
-    #[must_use] 
+    #[must_use]
     pub fn compile(
         items: &[Item],
         capacities: &[u32],
@@ -175,12 +175,20 @@ impl SatCompiler {
                     builder.add_clause(vec![Literal(-item_vars[*from_id].0), item_vars[*to_id]]);
                 }
                 BusinessRule::Conflicts { a_id, b_id } => {
-                    builder.add_clause(vec![Literal(-item_vars[*a_id].0), Literal(-item_vars[*b_id].0)]);
+                    builder.add_clause(vec![
+                        Literal(-item_vars[*a_id].0),
+                        Literal(-item_vars[*b_id].0),
+                    ]);
                 }
             }
         }
 
-        let max_param_val = capacities.iter().copied().chain(std::iter::once(target_val)).max().unwrap_or(0);
+        let max_param_val = capacities
+            .iter()
+            .copied()
+            .chain(std::iter::once(target_val))
+            .max()
+            .unwrap_or(0);
         let use_parameterized = match config.mode {
             CircuitExpansionMode::ForceUnroll => false,
             CircuitExpansionMode::Parameterized => true,
@@ -194,10 +202,12 @@ impl SatCompiler {
                 .map(|(idx, it)| (item_vars[idx], it.weights.get(dim).copied().unwrap_or(0)))
                 .collect();
 
-            let sum_bits = Self::build_linear_sum_tree(&mut builder, &dim_weights, &format!("cap_{dim}"));
+            let sum_bits =
+                Self::build_linear_sum_tree(&mut builder, &dim_weights, &format!("cap_{dim}"));
 
             if use_parameterized {
-                let cap_bits = Self::alloc_parameter_bus(&mut builder, cap, &format!("param_cap_{dim}"));
+                let cap_bits =
+                    Self::alloc_parameter_bus(&mut builder, cap, &format!("param_cap_{dim}"));
                 builder.add_less_than_or_equal(&sum_bits, &cap_bits);
             } else {
                 let cap_bits = Self::to_constant_bits(&builder, cap);
@@ -219,7 +229,7 @@ impl SatCompiler {
         let num_clauses = builder.clauses.len();
         let mut dimacs = String::new();
         let _ = writeln!(dimacs, "p cnf {num_vars} {num_clauses}");
-        
+
         for c in &builder.clauses {
             for lit in c {
                 let _ = write!(dimacs, "{} ", lit.0);
@@ -265,7 +275,9 @@ impl SatCompiler {
             for chunk in vectors.chunks(2) {
                 if chunk.len() == 2 {
                     let sum_res = builder.add_ripple_carry_adder(&chunk[0], &chunk[1]);
-                    builder.var_descriptions.push(format!("{prefix}_tree_step_{step}_merge"));
+                    builder
+                        .var_descriptions
+                        .push(format!("{prefix}_tree_step_{step}_merge"));
                     next_vectors.push(sum_res);
                 } else {
                     next_vectors.push(chunk[0].clone());
@@ -275,7 +287,10 @@ impl SatCompiler {
             step += 1;
         }
 
-        vectors.into_iter().next().unwrap_or_else(|| vec![builder.false_lit])
+        vectors
+            .into_iter()
+            .next()
+            .unwrap_or_else(|| vec![builder.false_lit])
     }
 
     fn to_constant_bits(builder: &CnfBuilder, mut val: u32) -> Vec<Literal> {
@@ -294,15 +309,24 @@ impl SatCompiler {
         bits
     }
 
-    fn alloc_parameter_bus(builder: &mut CnfBuilder, mut val: u32, desc_prefix: &str) -> Vec<Literal> {
+    fn alloc_parameter_bus(
+        builder: &mut CnfBuilder,
+        mut val: u32,
+        desc_prefix: &str,
+    ) -> Vec<Literal> {
         let mut bits = Vec::new();
         let mut bit_idx = 0;
         let original_val = val;
 
         while val > 0 || bits.is_empty() {
             let is_one = (val & 1) == 1;
-            let param_var = builder.alloc_var(&format!("{}_bit{}_{}", desc_prefix, bit_idx, i32::from(is_one)));
-            
+            let param_var = builder.alloc_var(&format!(
+                "{}_bit{}_{}",
+                desc_prefix,
+                bit_idx,
+                i32::from(is_one)
+            ));
+
             if is_one {
                 builder.add_clause(vec![param_var]);
             } else {
@@ -314,7 +338,9 @@ impl SatCompiler {
             bit_idx += 1;
         }
 
-        builder.var_descriptions.push(format!("ParamBus: {desc_prefix} = {original_val}"));
+        builder
+            .var_descriptions
+            .push(format!("ParamBus: {desc_prefix} = {original_val}"));
         bits
     }
 }

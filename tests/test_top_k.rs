@@ -8,7 +8,7 @@ use mitsukeru::{Optimizer, ProblemInput};
 #[test]
 fn test_top_3_candidates_generation() {
     let prob = test_a();
-    
+
     let input = ProblemInput {
         items: prob.items.clone(),
         capacities: prob.capacities.clone(),
@@ -21,13 +21,21 @@ fn test_top_3_candidates_generation() {
 
     println!("\n=== Top-3 Candidates Test Result ===");
     println!("Best Optimal Value: {} pt", solution.best_value);
-    println!("Optimality Gap    : {:.2}%", solution.optimality_gap * 100.0);
+    println!(
+        "Optimality Gap    : {:.2}%",
+        solution.optimality_gap * 100.0
+    );
     println!("Upper Bound       : {:.1} pt", solution.upper_bound);
 
     assert_eq!(solution.best_value, 550);
-    assert!(solution.optimality_gap.abs() <= f64::EPSILON, "Optimal solution must have 0% gap");
+    assert!(
+        solution.optimality_gap.abs() <= f64::EPSILON,
+        "Optimal solution must have 0% gap"
+    );
 
-    let candidates = solution.top_candidates.expect("Top candidates must be present");
+    let candidates = solution
+        .top_candidates
+        .expect("Top candidates must be present");
     assert!(
         candidates.len() >= 2,
         "Should return at least top alternative candidates, found {}",
@@ -49,8 +57,14 @@ fn test_top_3_candidates_generation() {
             w0 += prob.items[id].weights[0];
             w1 += prob.items[id].weights[1];
         }
-        assert!(w0 <= prob.capacities[0], "Candidate must respect capacity 0");
-        assert!(w1 <= prob.capacities[1], "Candidate must respect capacity 1");
+        assert!(
+            w0 <= prob.capacities[0],
+            "Candidate must respect capacity 0"
+        );
+        assert!(
+            w1 <= prob.capacities[1],
+            "Candidate must respect capacity 1"
+        );
     }
 
     for i in 0..candidates.len() - 1 {

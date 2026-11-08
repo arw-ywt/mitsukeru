@@ -6,8 +6,8 @@
 
 // target/criterion/report/index.html
 
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
-use mitsukeru::{BranchAndBoundSolver, ProblemInput, Optimizer};
+use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
+use mitsukeru::{BranchAndBoundSolver, Optimizer, ProblemInput};
 
 #[path = "../tests/common/mod.rs"]
 mod common;
@@ -28,7 +28,13 @@ fn bench_solver_instances(c: &mut Criterion) {
 
     for (idx, problem) in instances.into_iter().enumerate() {
         let prefix = if problem.name.starts_with("Test") {
-            problem.name.split('(').next().unwrap_or(problem.name).trim().replace(' ', "_")
+            problem
+                .name
+                .split('(')
+                .next()
+                .unwrap_or(problem.name)
+                .trim()
+                .replace(' ', "_")
         } else {
             let letter = (b'A' + u8::try_from(idx).unwrap()) as char;
             format!("Test_{letter}")
@@ -62,8 +68,8 @@ fn bench_solver_instances(c: &mut Criterion) {
 
         group.bench_with_input(BenchmarkId::new("Opt_Pure", &id), &input, |b, inp| {
             b.iter(|| {
-                let optimizer = Optimizer::new(black_box(inp))
-                    .with_strategy(mitsukeru::SolverStrategy::Pure);
+                let optimizer =
+                    Optimizer::new(black_box(inp)).with_strategy(mitsukeru::SolverStrategy::Pure);
                 optimizer.solve()
             });
         });

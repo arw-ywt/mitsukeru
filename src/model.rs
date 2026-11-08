@@ -33,7 +33,7 @@ pub struct ProblemInput {
 }
 
 impl ProblemInput {
-    #[must_use] 
+    #[must_use]
     pub fn new(
         items: Vec<Item>,
         capacities: Vec<u32>,
@@ -72,7 +72,7 @@ impl Default for OptimizerConfig {
 
 impl OptimizerConfig {
     /// [Preset] Ultra-fast mode optimized for synchronous Web / WASM environments (default, 2.0 ms timeout).
-    #[must_use] 
+    #[must_use]
     pub fn preset_fast() -> Self {
         Self {
             strategy: SolverStrategy::Mixed,
@@ -83,7 +83,7 @@ impl OptimizerConfig {
     }
 
     /// [Preset] High-quality batch processing mode (100 ms timeout, up to 1M nodes).
-    #[must_use] 
+    #[must_use]
     pub fn preset_accurate() -> Self {
         Self {
             strategy: SolverStrategy::Mixed,
@@ -94,7 +94,7 @@ impl OptimizerConfig {
     }
 
     /// [Preset] Exact solution mode with unbounded search time and complete optimality proof.
-    #[must_use] 
+    #[must_use]
     pub fn preset_exact() -> Self {
         Self {
             strategy: SolverStrategy::Mixed,
@@ -115,11 +115,10 @@ pub struct OptimizeRequest {
     pub config: Option<OptimizerConfig>,
 }
 
-
 /// ## Selectable Item
 /// Represents a decision candidate with multi-dimensional resource consumption
 /// and an associated objective value.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)] 
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
 pub struct Item {
     /// Unique identifier of the item (zero-based index).
     pub id: usize,
@@ -276,13 +275,9 @@ pub struct TargetConflict {
 #[serde(tag = "type")]
 pub enum OptimizeError {
     /// The problem cannot be satisfied due to conflicting constraints.
-    Infeasible {
-        report: ConflictReport,
-    },
+    Infeasible { report: ConflictReport },
     /// The input parameters are malformed or invalid.
-    InvalidInput {
-        message: String,
-    },
+    InvalidInput { message: String },
 }
 
 impl std::fmt::Display for OptimizeError {
@@ -329,5 +324,5 @@ pub struct BnbResult {
     pub selected_item_ids: Vec<usize>,
     pub execution_time_ms: f64,
     pub explored_nodes: u64,
-    pub status: SolutionStatus, 
+    pub status: SolutionStatus,
 }

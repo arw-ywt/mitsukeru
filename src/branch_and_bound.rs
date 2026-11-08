@@ -1,8 +1,8 @@
 // src/branch_and_bound.rs
 
 use crate::bitset::BitSet;
-use crate::model::{BusinessRule, Item, SolutionStatus};
 use crate::model::CandidateSolution;
+use crate::model::{BusinessRule, Item, SolutionStatus};
 
 #[cfg(not(target_arch = "wasm32"))]
 use std::time::Instant;
@@ -37,7 +37,6 @@ struct ExactSolverCore<'a, const W: usize> {
 }
 
 impl<'a, const W: usize> ExactSolverCore<'a, W> {
-
     fn record_candidate(&mut self, val: u32, mask: BitSet<W>) {
         if self.top_k <= 1 || val == 0 {
             return;
@@ -63,11 +62,7 @@ impl<'a, const W: usize> ExactSolverCore<'a, W> {
         }
     }
 
-    fn new(
-        items: &[Item],
-        capacities: &'a [u32],
-        rules: &[BusinessRule],
-    ) -> Self {
+    fn new(items: &[Item], capacities: &'a [u32], rules: &[BusinessRule]) -> Self {
         let n = items.len().min(BitSet::<W>::CAPACITY);
 
         let mut internal_items: Vec<InternalItem> = items
@@ -174,7 +169,6 @@ impl<'a, const W: usize> ExactSolverCore<'a, W> {
         }
     }
 
-
     fn solve(&mut self) -> (u32, Vec<usize>, u64, SolutionStatus) {
         let num_dims = self.capacities.len();
         let current_weights = vec![0u32; num_dims];
@@ -194,7 +188,11 @@ impl<'a, const W: usize> ExactSolverCore<'a, W> {
         if self.top_k > 1 && self.best_value > 0 {
             let mut best_ids = selected_ids.clone();
             best_ids.sort_unstable();
-            if !self.candidates.iter().any(|c| c.selected_item_ids == best_ids) {
+            if !self
+                .candidates
+                .iter()
+                .any(|c| c.selected_item_ids == best_ids)
+            {
                 self.candidates.push(CandidateSolution {
                     value: self.best_value,
                     selected_item_ids: best_ids,
@@ -234,7 +232,6 @@ impl<'a, const W: usize> ExactSolverCore<'a, W> {
         }
     }
 
-    
     fn compute_fractional_bound(
         &self,
         start_idx: usize,
@@ -280,26 +277,27 @@ impl<'a, const W: usize> ExactSolverCore<'a, W> {
         current_val: u32,
         current_weights: &[u32],
     ) {
-        if let Some(limit) = self.max_nodes 
-            && self.explored_nodes >= limit {
-                self.timed_out = true;
-                return;
-            }
+        if let Some(limit) = self.max_nodes
+            && self.explored_nodes >= limit
+        {
+            self.timed_out = true;
+            return;
+        }
 
         if self.explored_nodes.trailing_zeros() >= 12
-            && let (Some(start), Some(limit)) = (self.start_time, self.time_limit_ms) 
-                && start.elapsed().as_secs_f64() * 1000.0 >= limit {
-                    self.timed_out = true;
-                    return;
-                }
-            
+            && let (Some(start), Some(limit)) = (self.start_time, self.time_limit_ms)
+            && start.elapsed().as_secs_f64() * 1000.0 >= limit
+        {
+            self.timed_out = true;
+            return;
+        }
 
         if self.timed_out {
             return;
         }
 
         self.explored_nodes += 1;
-        
+
         let cutoff = if self.top_k <= 1 {
             f64::from(self.best_value)
         } else if self.candidates.len() >= self.top_k {
@@ -405,7 +403,7 @@ pub struct BranchAndBoundSolver<'a> {
 }
 
 impl<'a> BranchAndBoundSolver<'a> {
-    #[must_use] 
+    #[must_use]
     pub fn new(items: &'a [Item], capacities: &'a [u32], rules: &'a [BusinessRule]) -> Self {
         Self {
             items,
@@ -474,12 +472,12 @@ impl<'a> BranchAndBoundSolver<'a> {
         res
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn upper_bound(&self) -> f64 {
         self.upper_bound
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn optimality_gap(&self) -> f64 {
         self.optimality_gap
     }
@@ -496,8 +494,18 @@ mod tests {
     #[test]
     fn test_branch_and_bound_conflict_rule() {
         let items = vec![
-            Item { id: 0, name: "A".into(), weights: vec![10, 10], value: 50 },
-            Item { id: 1, name: "B".into(), weights: vec![10, 10], value: 60 },
+            Item {
+                id: 0,
+                name: "A".into(),
+                weights: vec![10, 10],
+                value: 50,
+            },
+            Item {
+                id: 1,
+                name: "B".into(),
+                weights: vec![10, 10],
+                value: 60,
+            },
         ];
         let capacities = vec![20, 20];
         let rules = vec![BusinessRule::Conflicts { a_id: 0, b_id: 1 }];
@@ -529,7 +537,10 @@ mod tests {
 
         assert_eq!(val, 570);
         assert_eq!(selected.len(), 3);
-        assert!(nodes < 1000, "Explored nodes should be well under 1000, was {nodes}");
+        assert!(
+            nodes < 1000,
+            "Explored nodes should be well under 1000, was {nodes}"
+        );
         assert_eq!(status, SolutionStatus::Optimal);
     }
 }

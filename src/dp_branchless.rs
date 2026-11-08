@@ -10,7 +10,7 @@ pub struct Flat2dDpSolver {
 }
 
 impl Flat2dDpSolver {
-    #[must_use] 
+    #[must_use]
     pub fn new(cap1: u32, cap2: u32) -> Self {
         let c1 = cap1 as usize;
         let c2 = cap2 as usize;
@@ -23,7 +23,6 @@ impl Flat2dDpSolver {
         }
     }
 
-    
     fn get_index(&self, w1: usize, w2: usize) -> usize {
         w1 * (self.cap2 + 1) + w2
     }
@@ -32,7 +31,7 @@ impl Flat2dDpSolver {
         self.table.fill(0);
         let stride = self.cap2 + 1;
         let area = (self.cap1 + 1) * stride;
-        
+
         let total_bits = items.len() * area;
         let num_u64s = total_bits.div_ceil(64);
         self.decision_history.resize(num_u64s, 0);
@@ -76,7 +75,7 @@ impl Flat2dDpSolver {
         }
 
         let best_value = self.table[self.get_index(self.cap1, self.cap2)];
-        
+
         let mut selected_ids = Vec::new();
         let mut cur_w1 = self.cap1;
         let mut cur_w2 = self.cap2;
@@ -94,7 +93,8 @@ impl Flat2dDpSolver {
                 let bit_idx = item_idx * area + curr_idx;
 
                 let is_taken = unsafe {
-                    (*self.decision_history.get_unchecked(bit_idx / 64) & (1u64 << (bit_idx % 64))) != 0
+                    (*self.decision_history.get_unchecked(bit_idx / 64) & (1u64 << (bit_idx % 64)))
+                        != 0
                 };
 
                 if is_taken {
@@ -108,14 +108,12 @@ impl Flat2dDpSolver {
 
         (best_value, selected_ids)
     }
-    
-    #[must_use] 
+
+    #[must_use]
     pub fn allocated_bytes(&self) -> (usize, usize, usize) {
         let table_bytes = self.table.capacity() * std::mem::size_of::<u32>();
         let history_bytes = self.decision_history.capacity() * std::mem::size_of::<u64>();
         let total = table_bytes + history_bytes + std::mem::size_of::<Self>();
         (table_bytes, history_bytes, total)
     }
-
 }
-

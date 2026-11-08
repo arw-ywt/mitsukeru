@@ -15,7 +15,7 @@ pub struct InfeasibilityAnalyzer<'a> {
 }
 
 impl<'a> InfeasibilityAnalyzer<'a> {
-    #[must_use] 
+    #[must_use]
     pub fn new(
         items: &'a [Item],
         capacities: &'a [u32],
@@ -32,7 +32,7 @@ impl<'a> InfeasibilityAnalyzer<'a> {
         }
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn analyze(&self) -> ConflictReport {
         let n = self.items.len();
         if n <= 256 {
@@ -54,7 +54,9 @@ impl<'a> InfeasibilityAnalyzer<'a> {
         let mut capacity_conflicts = Vec::new();
 
         for root in 0..n {
-            if let Some(chain) = self.find_chain_conflict::<W>(root, &closure[root], &conflicts[root], &adj_requires) {
+            if let Some(chain) =
+                self.find_chain_conflict::<W>(root, &closure[root], &conflicts[root], &adj_requires)
+            {
                 logical_chain_conflicts.extend(chain);
             }
             if let Some(cap) = self.check_capacity_conflict::<W>(root, &closure[root]) {
@@ -155,10 +157,8 @@ impl<'a> InfeasibilityAnalyzer<'a> {
                         }
                         path.reverse();
 
-                        let path_names: Vec<String> = path
-                            .iter()
-                            .map(|&id| self.items[id].name.clone())
-                            .collect();
+                        let path_names: Vec<String> =
+                            path.iter().map(|&id| self.items[id].name.clone()).collect();
 
                         let msg = format!(
                             "Chain Conflict: [{}] requires '{}', but it conflicts with root '{}'",
@@ -294,13 +294,34 @@ mod tests {
     #[test]
     fn test_chain_conflict() {
         let items = vec![
-            Item { id: 0, name: "A".into(), weights: vec![10], value: 10 },
-            Item { id: 1, name: "B".into(), weights: vec![10], value: 10 },
-            Item { id: 2, name: "C".into(), weights: vec![10], value: 10 },
+            Item {
+                id: 0,
+                name: "A".into(),
+                weights: vec![10],
+                value: 10,
+            },
+            Item {
+                id: 1,
+                name: "B".into(),
+                weights: vec![10],
+                value: 10,
+            },
+            Item {
+                id: 2,
+                name: "C".into(),
+                weights: vec![10],
+                value: 10,
+            },
         ];
         let rules = vec![
-            BusinessRule::Requires { from_id: 0, to_id: 1 },
-            BusinessRule::Requires { from_id: 1, to_id: 2 },
+            BusinessRule::Requires {
+                from_id: 0,
+                to_id: 1,
+            },
+            BusinessRule::Requires {
+                from_id: 1,
+                to_id: 2,
+            },
             BusinessRule::Conflicts { a_id: 0, b_id: 2 },
         ];
 

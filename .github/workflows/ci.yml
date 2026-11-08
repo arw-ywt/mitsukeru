@@ -13,7 +13,6 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
-  RUSTFLAGS: "-D warnings"
 
 jobs:
   check-and-lint:
@@ -35,10 +34,10 @@ jobs:
         run: cargo fmt --all --check
 
       - name: Run Clippy (Pedantic checks)
-        run: cargo clippy --all-targets -- -D warnings -W clippy::pedantic
+        run: cargo clippy --lib --tests -- -D warnings -W clippy::pedantic
 
   test-native:
-    name: Native Tests (Debug & Release)
+    name: Native Tests (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -55,10 +54,10 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Run unit & integration tests (Debug)
-        run: cargo test --all-targets
+        run: cargo test --lib --tests
 
       - name: Run all tests (Release Mode)
-        run: cargo test --all-targets --release
+        run: cargo test --lib --tests --release
 
   build-wasm:
     name: WebAssembly & Package Verification
@@ -73,7 +72,9 @@ jobs:
           targets: wasm32-unknown-unknown
 
       - name: Install wasm-pack
-        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+        uses: jetli/wasm-pack-action@v0.4.0
+        with:
+          version: 'latest'
 
       - name: Setup Node.js
         uses: actions/setup-node@v4

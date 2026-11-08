@@ -21,21 +21,33 @@ fn format_num(val: u64) -> String {
 
 #[test]
 fn test_f_scale_sweep() {
-    println!("\n=====================================================================================================");
-    println!("                               Test F Scaling & Stress Sweep Benchmark                               ");
-    println!("=====================================================================================================");
+    println!(
+        "\n====================================================================================================="
+    );
+    println!(
+        "                               Test F Scaling & Stress Sweep Benchmark                               "
+    );
+    println!(
+        "====================================================================================================="
+    );
     println!(
         "{:<6} | {:<9} | {:<10} | {:<10} | {:<9} | {:<12} | {:<10} | {:<8}",
         "Items", "Strategy", "Status", "Score", "Gap (%)", "Nodes", "Time (ms)", "Mnodes/s"
     );
-    println!("-----------------------------------------------------------------------------------------------------");
+    println!(
+        "-----------------------------------------------------------------------------------------------------"
+    );
 
     let n_list = [16, 32, 64, 128, 256, 512, 1024, 2048];
 
     for &n in &n_list {
         let prob = test_f(n);
 
-        for &strategy in &[SolverStrategy::Pure, SolverStrategy::Heuristic, SolverStrategy::Mixed] {
+        for &strategy in &[
+            SolverStrategy::Pure,
+            SolverStrategy::Heuristic,
+            SolverStrategy::Mixed,
+        ] {
             let strat_label = match strategy {
                 SolverStrategy::Pure => "Pure",
                 SolverStrategy::Heuristic => "Heuristic",
@@ -87,6 +99,8 @@ fn test_f_scale_sweep() {
                 "Failed to find positive solution for n={n}"
             );
         }
-        println!("-----------------------------------------------------------------------------------------------------");
+        println!(
+            "-----------------------------------------------------------------------------------------------------"
+        );
     }
 }

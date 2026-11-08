@@ -77,27 +77,15 @@ impl GraphHeuristics {
             conflicts: &conflicts,
         };
 
-        
         let node_embeddings = Self::build_initial_embeddings(n, &ctx);
 
-        let final_embeddings = Self::run_message_passing(
-            n,
-            node_embeddings,
-            &requires_out,
-            &requires_in,
-            &conflicts,
-        );
-
+        let final_embeddings =
+            Self::run_message_passing(n, node_embeddings, &requires_out, &requires_in, &conflicts);
 
         let scores = Self::compute_scores(&final_embeddings);
 
-        let (initial_value, initial_selected) = Self::generate_feasible_solution(
-            items,
-            capacities,
-            &requires_out,
-            &conflicts,
-            &scores,
-        );
+        let (initial_value, initial_selected) =
+            Self::generate_feasible_solution(items, capacities, &requires_out, &conflicts, &scores);
 
         let decisions = Self::make_decisions(n, &scores, &initial_selected);
         let elapsed_ms = timer.elapsed().as_secs_f64() * 1000.0;
@@ -111,10 +99,7 @@ impl GraphHeuristics {
         }
     }
 
-    fn build_graphs(
-        n: usize,
-        rules: &[BusinessRule],
-    ) -> GraphAdjList {
+    fn build_graphs(n: usize, rules: &[BusinessRule]) -> GraphAdjList {
         let mut requires_out: Vec<Vec<usize>> = vec![Vec::new(); n];
         let mut requires_in: Vec<Vec<usize>> = vec![Vec::new(); n];
         let mut conflicts: Vec<Vec<usize>> = vec![Vec::new(); n];
@@ -186,10 +171,7 @@ impl GraphHeuristics {
         (eff_w0, eff_w1, eff_v)
     }
 
-    fn build_initial_embeddings(
-        n: usize,
-        ctx: &EmbeddingContext,
-    ) -> Vec<[f64; EMBED_DIM]> {
+    fn build_initial_embeddings(n: usize, ctx: &EmbeddingContext) -> Vec<[f64; EMBED_DIM]> {
         let cap_x = f64::from(ctx.capacities.first().copied().unwrap_or(1).max(1));
         let cap_y = f64::from(ctx.capacities.get(1).copied().unwrap_or(1).max(1));
         let max_val = ctx.eff_v.iter().copied().fold(1.0f64, f64::max).max(1.0);
@@ -203,7 +185,8 @@ impl GraphHeuristics {
             let v = ctx.eff_v[i];
             let density = v / (w0 + w1 + 1.0);
 
-            let req_out_cnt = f64::from(u32::try_from(ctx.requires_out[i].len()).unwrap_or(u32::MAX));
+            let req_out_cnt =
+                f64::from(u32::try_from(ctx.requires_out[i].len()).unwrap_or(u32::MAX));
             let req_in_cnt = f64::from(u32::try_from(ctx.requires_in[i].len()).unwrap_or(u32::MAX));
             let conf_cnt = f64::from(u32::try_from(ctx.conflicts[i].len()).unwrap_or(u32::MAX));
 
@@ -223,7 +206,6 @@ impl GraphHeuristics {
         }
         node_embeddings
     }
-
 
     fn run_message_passing(
         n: usize,
@@ -258,7 +240,11 @@ impl GraphHeuristics {
 
                 for d in 0..EMBED_DIM {
                     let combined = current_emb[i][d] * 0.8 + agg[d] * 0.2;
-                    next_emb[i][d] = if combined > 0.0 { combined.min(2.0) } else { 0.0 };
+                    next_emb[i][d] = if combined > 0.0 {
+                        combined.min(2.0)
+                    } else {
+                        0.0
+                    };
                 }
             }
             std::mem::swap(&mut current_emb, &mut next_emb);
@@ -312,7 +298,9 @@ impl GraphHeuristics {
 
         let mut order: Vec<usize> = (0..n).collect();
         order.sort_unstable_by(|&a, &b| {
-            scores[b].partial_cmp(&scores[a]).unwrap_or(std::cmp::Ordering::Equal)
+            scores[b]
+                .partial_cmp(&scores[a])
+                .unwrap_or(std::cmp::Ordering::Equal)
         });
 
         let mut selected_mask = HeuristicBitSet::new();
@@ -395,9 +383,7 @@ impl GraphHeuristics {
             }
         }
 
-        let selected_ids = (0..n)
-            .filter(|&i| selected_mask.has(i))
-            .collect();
+        let selected_ids = (0..n).filter(|&i| selected_mask.has(i)).collect();
 
         (current_value, selected_ids)
     }

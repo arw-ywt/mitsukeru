@@ -1,4 +1,4 @@
-<img src="./assets/logo.png" alt="mitsukeru logo" width="120" />
+<img src="https://raw.githubusercontent.com/arw-ywt/mitsukeru/main/assets/logo.png" alt="mitsukeru logo" width="120" />
 
 <h1 align="center">
 mitsukeru
@@ -167,6 +167,8 @@ Want to see more examples? [Here](https://arw-ywt.github.io/mitsukeru/), you can
 - Optimizing continuous or fractional variables, such as percentage allocations or linear programming models
 - Handling problems with high-dimensional capacity limits (e.g., ten or more simultaneous resource dimensions) where surrogate relaxation bounds become loose
 - Running offline batch processes where execution latency, memory footprint, and external runtime dependencies are not operational constraints
+
+If you are looking for a solver for the above purpose, use general-purpose MIP/LP solvers such as Gurobi, SCIP, or Google OR-Tools.
 
 ## Options
 

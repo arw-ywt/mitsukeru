@@ -2,17 +2,10 @@
 // cargo test --release -- --nocapture --test-threads=1
 
 mod common;
-use common::*; 
+use common::*;
 use mitsukeru::{
-    BranchAndBoundSolver,
-    CompilerConfig, 
-    Flat2dDpSolver, 
-    InfeasibilityAnalyzer, 
-    Item, 
-    SatCompiler,
-    GraphHeuristics, 
-    Optimizer, 
-    SolutionStatus,
+    BranchAndBoundSolver, CompilerConfig, Flat2dDpSolver, GraphHeuristics, InfeasibilityAnalyzer,
+    Item, Optimizer, SatCompiler, SolutionStatus,
 };
 
 const MILLION: f64 = 1_000_000.0;
@@ -60,17 +53,19 @@ pub struct BenchTimer {
 }
 
 impl BenchTimer {
-    #[must_use] 
+    #[must_use]
     pub fn start() -> Self {
         Self {
             #[cfg(not(target_arch = "wasm32"))]
             start: std::time::Instant::now(),
             #[cfg(target_arch = "wasm32")]
-            start_ms: web_sys::window().and_then(|w| w.performance()).map_or(0.0, |p| p.now()),
+            start_ms: web_sys::window()
+                .and_then(|w| w.performance())
+                .map_or(0.0, |p| p.now()),
         }
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn elapsed_ms(&self) -> f64 {
         #[cfg(not(target_arch = "wasm32"))]
         {
@@ -78,17 +73,19 @@ impl BenchTimer {
         }
         #[cfg(target_arch = "wasm32")]
         {
-            let now = web_sys::window().and_then(|w| w.performance()).map_or(0.0, |p| p.now());
+            let now = web_sys::window()
+                .and_then(|w| w.performance())
+                .map_or(0.0, |p| p.now());
             now - self.start_ms
         }
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn elapsed_secs(&self) -> f64 {
         self.elapsed_ms() / MS_PER_SEC
     }
 
-    #[must_use] 
+    #[must_use]
     pub fn throughput_mops(&self, operations: u64) -> f64 {
         calc_throughput(operations, self.elapsed_secs())
     }
@@ -102,16 +99,29 @@ fn test_a_happy_path() {
     assert_eq!(dp_val, 555);
 
     let mut mip = BranchAndBoundSolver::new(&p.items, &p.capacities, &p.rules);
-    let (mip_val, selected, _, _) = mip.solve(); 
+    let (mip_val, selected, _, _) = mip.solve();
     assert_eq!(mip_val, 550);
     assert_eq!(selected.len(), 10);
 
-    assert!(selected.contains(&0) && selected.contains(&1), "A001 and A002 must pair");
-    assert!(selected.contains(&10) && selected.contains(&11), "A011 and A012 must pair");
-    assert!(!(selected.contains(&4) && selected.contains(&5)), "A005 and A006 must conflict");
-    assert!(!(selected.contains(&6) && selected.contains(&13)), "A007 and A014 must conflict");
+    assert!(
+        selected.contains(&0) && selected.contains(&1),
+        "A001 and A002 must pair"
+    );
+    assert!(
+        selected.contains(&10) && selected.contains(&11),
+        "A011 and A012 must pair"
+    );
+    assert!(
+        !(selected.contains(&4) && selected.contains(&5)),
+        "A005 and A006 must conflict"
+    );
+    assert!(
+        !(selected.contains(&6) && selected.contains(&13)),
+        "A007 and A014 must conflict"
+    );
 
-    let analyzer = InfeasibilityAnalyzer::new(&p.items, &p.capacities, &p.rules, p.target_val, mip_val);
+    let analyzer =
+        InfeasibilityAnalyzer::new(&p.items, &p.capacities, &p.rules, p.target_val, mip_val);
     let report = analyzer.analyze();
     assert!(report.is_feasible);
 }
@@ -120,12 +130,13 @@ fn test_a_happy_path() {
 fn test_b_chain_conflict_infeasibility() {
     let p = test_b();
     let mut mip = BranchAndBoundSolver::new(&p.items, &p.capacities, &p.rules);
-    let (mip_val, selected, _, _) = mip.solve(); 
+    let (mip_val, selected, _, _) = mip.solve();
     assert_eq!(mip_val, 215);
     assert!(!selected.contains(&0));
     assert!(!selected.contains(&4));
 
-    let analyzer = InfeasibilityAnalyzer::new(&p.items, &p.capacities, &p.rules, p.target_val, mip_val);
+    let analyzer =
+        InfeasibilityAnalyzer::new(&p.items, &p.capacities, &p.rules, p.target_val, mip_val);
     let report = analyzer.analyze();
     assert!(!report.is_feasible);
     assert_eq!(report.logical_chain_conflicts.len(), 1);
@@ -137,10 +148,11 @@ fn test_b_chain_conflict_infeasibility() {
 fn test_c_multi_body_conflict() {
     let p = test_c();
     let mut mip = BranchAndBoundSolver::new(&p.items, &p.capacities, &p.rules);
-    let (mip_val, _, _, _) = mip.solve(); 
+    let (mip_val, _, _, _) = mip.solve();
     assert_eq!(mip_val, 150);
 
-    let analyzer = InfeasibilityAnalyzer::new(&p.items, &p.capacities, &p.rules, p.target_val, mip_val);
+    let analyzer =
+        InfeasibilityAnalyzer::new(&p.items, &p.capacities, &p.rules, p.target_val, mip_val);
     let report = analyzer.analyze();
     assert!(report.logical_chain_conflicts.is_empty());
     assert!(!report.is_feasible);
@@ -150,7 +162,7 @@ fn test_c_multi_body_conflict() {
 fn test_d_5000_1000() {
     let p = test_d();
     let mut mip = BranchAndBoundSolver::new(&p.items, &p.capacities, &p.rules);
-    let (mip_val, selected, _, _) = mip.solve(); 
+    let (mip_val, selected, _, _) = mip.solve();
     assert_eq!(mip_val, 865);
     assert_eq!(selected.len(), 7);
 
@@ -163,18 +175,21 @@ fn test_d_5000_1000() {
     assert_eq!(total_w1, 5000);
     assert_eq!(total_w2, 700);
 
-    let analyzer = InfeasibilityAnalyzer::new(&p.items, &p.capacities, &p.rules, p.target_val, mip_val);
+    let analyzer =
+        InfeasibilityAnalyzer::new(&p.items, &p.capacities, &p.rules, p.target_val, mip_val);
     assert!(analyzer.analyze().is_feasible);
 }
 
 #[test]
 fn test_stress_memory() {
-    let dummy_items: Vec<Item> = (0..15).map(|i| Item {
-        id: i,
-        name: format!("F_{i:03}"),
-        weights: vec![100, 100],
-        value: 50,
-    }).collect();
+    let dummy_items: Vec<Item> = (0..15)
+        .map(|i| Item {
+            id: i,
+            name: format!("F_{i:03}"),
+            weights: vec![100, 100],
+            value: 50,
+        })
+        .collect();
 
     let cap_x = 2500;
     let cap_y = 2500;
@@ -191,16 +206,33 @@ fn test_stress_memory() {
     println!(" Problem   : ");
     println!("        Items: {}", dummy_items.len());
     println!("        Capacities: [{cap_x}, {cap_y}]");
-    println!("        Grid Cells: {} ({}x{})", format_num(grid_cells), grid_x, grid_y);
+    println!(
+        "        Grid Cells: {} ({}x{})",
+        format_num(grid_cells),
+        grid_x,
+        grid_y
+    );
     println!(" Status    : PASSED\n");
 
     println!(" +-------------------+--------------------+--------------------+");
     println!(" | Component         | Allocated (Bytes)  | Size (MB)          |");
     println!(" +-------------------+--------------------+--------------------+");
-    println!(" | DP Table Buffer   | {:>18} | {:>15.2} MB |", format_num(table_bytes as u64), bytes_to_mb(table_bytes));
-    println!(" | Bitset History    | {:>18} | {:>15.2} MB |", format_num(history_bytes as u64), bytes_to_mb(history_bytes));
+    println!(
+        " | DP Table Buffer   | {:>18} | {:>15.2} MB |",
+        format_num(table_bytes as u64),
+        bytes_to_mb(table_bytes)
+    );
+    println!(
+        " | Bitset History    | {:>18} | {:>15.2} MB |",
+        format_num(history_bytes as u64),
+        bytes_to_mb(history_bytes)
+    );
     println!(" +-------------------+--------------------+--------------------+");
-    println!(" | Total Allocated   | {:>18} | {:>15.2} MB |", format_num(total_alloc_bytes as u64), bytes_to_mb(total_alloc_bytes));
+    println!(
+        " | Total Allocated   | {:>18} | {:>15.2} MB |",
+        format_num(total_alloc_bytes as u64),
+        bytes_to_mb(total_alloc_bytes)
+    );
     println!(" +-------------------+--------------------+--------------------+");
 }
 
@@ -230,13 +262,23 @@ fn bench_dp(sc: &ProblemInstance, grid_cells: u64, grid_w: u64, grid_h: u64) {
         println!("        Status : OK");
         println!("        Time   : {avg_ms:.2} ms");
         println!("        Score  : {dp_score} pt");
-        println!("        Grid   : {} cells ({}x{})", format_num(grid_cells), grid_w, grid_h);
+        println!(
+            "        Grid   : {} cells ({}x{})",
+            format_num(grid_cells),
+            grid_w,
+            grid_h
+        );
         println!("        Memory : {mem_total_mb:.2} MB");
     } else {
         println!("        Status : SKIPPED (OOM)");
         println!("        Time   : ---");
         println!("        Score  : ---");
-        println!("        Grid   : {} cells ({}x{})", format_num(grid_cells), grid_w, grid_h);
+        println!(
+            "        Grid   : {} cells ({}x{})",
+            format_num(grid_cells),
+            grid_w,
+            grid_h
+        );
         println!("        Memory : ---");
     }
 }
@@ -299,7 +341,10 @@ fn bench_heuristic_bnb(sc: &ProblemInstance, target_limit: f64, single_run_thres
     let heur_probe_timer = BenchTimer::start();
     let prediction = GraphHeuristics::predict(&sc.items, &sc.capacities, &sc.rules);
     let mut mip = BranchAndBoundSolver::new(&sc.items, &sc.capacities, &sc.rules);
-    mip.set_initial_solution(prediction.initial_best_value, &prediction.initial_selected_ids);
+    mip.set_initial_solution(
+        prediction.initial_best_value,
+        &prediction.initial_selected_ids,
+    );
     mip.set_time_limit_ms(target_limit);
     mip.set_max_nodes(100_000);
     let (mut heur_score, _, mut heur_nodes, mut heur_status_code) = mip.solve();
@@ -346,19 +391,27 @@ fn bench_mixed_auto(sc: &ProblemInstance, target_limit: f64, single_run_thresh: 
     let run_mixed = || {
         let rule_count = sc.rules.len();
         let item_count = sc.items.len();
-        let use_heuristic = rule_count > 0 
-            && item_count >= 20 
+        let use_heuristic = rule_count > 0
+            && item_count >= 20
             && (item_count <= 64 || rule_count * 4 >= item_count);
 
         let mut mip = BranchAndBoundSolver::new(&sc.items, &sc.capacities, &sc.rules);
         if use_heuristic {
             let prediction = GraphHeuristics::predict(&sc.items, &sc.capacities, &sc.rules);
-            mip.set_initial_solution(prediction.initial_best_value, &prediction.initial_selected_ids);
+            mip.set_initial_solution(
+                prediction.initial_best_value,
+                &prediction.initial_selected_ids,
+            );
         }
         mip.set_time_limit_ms(target_limit);
         mip.set_max_nodes(100_000);
         let (score, _, nodes, status) = mip.solve();
-        (score, nodes, status, if use_heuristic { "Heuristic" } else { "Pure" })
+        (
+            score,
+            nodes,
+            status,
+            if use_heuristic { "Heuristic" } else { "Pure" },
+        )
     };
 
     let mixed_probe_timer = BenchTimer::start();
@@ -424,7 +477,8 @@ fn bench_sat_compile(sc: &ProblemInstance, mip_score: u32, target_limit: f64, ti
 
         for _ in 0..BENCH_ITERATIONS {
             let timer = BenchTimer::start();
-            let (_, vars, clauses, _) = SatCompiler::compile(&sc.items, &sc.capacities, &sc.rules, target, &sat_config);
+            let (_, vars, clauses, _) =
+                SatCompiler::compile(&sc.items, &sc.capacities, &sc.rules, target, &sat_config);
             sat_total_ms += timer.elapsed_ms();
             sat_vars = vars;
             sat_clauses = clauses;
@@ -477,7 +531,10 @@ fn test_performance() {
 
         println!("<{label}>");
         println!(" Items       : {}", sc.items.len());
-        println!(" Capacities  : [{}, {}]", sc.capacities[0], sc.capacities[1]);
+        println!(
+            " Capacities  : [{}, {}]",
+            sc.capacities[0], sc.capacities[1]
+        );
         if let Some(target) = sc.target_val {
             println!(" Target      : {target} pt");
         }
@@ -502,8 +559,11 @@ fn test_heuristic_acceleration() {
     let prediction = GraphHeuristics::predict(&p.items, &p.capacities, &p.rules);
     let mut accelerated_solver = BranchAndBoundSolver::new(&p.items, &p.capacities, &p.rules);
 
-    accelerated_solver.set_initial_solution(prediction.initial_best_value, &prediction.initial_selected_ids);
-    
+    accelerated_solver.set_initial_solution(
+        prediction.initial_best_value,
+        &prediction.initial_selected_ids,
+    );
+
     let (heur_val, heur_selected, heur_nodes, heur_status) = accelerated_solver.solve();
     assert_eq!(heur_status, SolutionStatus::Optimal);
 
@@ -550,7 +610,8 @@ fn test_optimizer_solution_status() {
     let opt_large = Optimizer::new(&input_large);
     let res_large = opt_large.solve().expect("Should solve large problem");
     assert!(
-        res_large.status == SolutionStatus::Optimal || res_large.status == SolutionStatus::Approximate,
+        res_large.status == SolutionStatus::Optimal
+            || res_large.status == SolutionStatus::Approximate,
         "Status should be valid: got {:?}",
         res_large.status
     );
@@ -567,14 +628,20 @@ fn test_optimizer_strategy_switching() {
         target_value: prob_a.target_val,
     };
     let a_mixed_sol = Optimizer::new(&input_a).solve().unwrap();
-    assert_eq!(a_mixed_sol.strategy_used, Some(mitsukeru::SolverStrategy::Pure));
+    assert_eq!(
+        a_mixed_sol.strategy_used,
+        Some(mitsukeru::SolverStrategy::Pure)
+    );
     assert_eq!(a_mixed_sol.best_value, 550);
 
     let sol_a_info = Optimizer::new(&input_a)
         .with_strategy(mitsukeru::SolverStrategy::Heuristic)
         .solve()
         .unwrap();
-    assert_eq!(sol_a_info.strategy_used, Some(mitsukeru::SolverStrategy::Heuristic));
+    assert_eq!(
+        sol_a_info.strategy_used,
+        Some(mitsukeru::SolverStrategy::Heuristic)
+    );
     assert_eq!(sol_a_info.best_value, 550);
 
     let prob_g = test_g();
@@ -586,14 +653,20 @@ fn test_optimizer_strategy_switching() {
     };
 
     let g_mixed_sol = Optimizer::new(&input_g).solve().unwrap();
-    assert_eq!(g_mixed_sol.strategy_used, Some(mitsukeru::SolverStrategy::Heuristic));
+    assert_eq!(
+        g_mixed_sol.strategy_used,
+        Some(mitsukeru::SolverStrategy::Heuristic)
+    );
     assert_eq!(g_mixed_sol.best_value, 1473);
 
     let sol_g_pure = Optimizer::new(&input_g)
         .with_strategy(mitsukeru::SolverStrategy::Pure)
         .solve()
         .unwrap();
-    assert_eq!(sol_g_pure.strategy_used, Some(mitsukeru::SolverStrategy::Pure));
+    assert_eq!(
+        sol_g_pure.strategy_used,
+        Some(mitsukeru::SolverStrategy::Pure)
+    );
     assert_eq!(sol_g_pure.best_value, 1473);
     assert!(
         g_mixed_sol.explored_nodes < sol_g_pure.explored_nodes,

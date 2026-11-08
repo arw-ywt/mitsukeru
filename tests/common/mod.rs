@@ -1,5 +1,6 @@
 // tests/common/mod.rs
 #![allow(dead_code)]
+#![allow(clippy::too_many_lines)]
 
 use mitsukeru::{BusinessRule, Item};
 use std::collections::BTreeSet;

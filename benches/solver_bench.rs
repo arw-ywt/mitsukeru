@@ -13,10 +13,10 @@ use mitsukeru::{BranchAndBoundSolver, ProblemInput, Optimizer};
 mod common;
 use common::*;
 
-fn bench_solver_scenarios(c: &mut Criterion) {
+fn bench_solver_instances(c: &mut Criterion) {
     let mut group = c.benchmark_group("solvers_suite");
 
-    let scenarios = vec![
+    let instances = vec![
         test_a(),
         test_b(),
         test_c(),
@@ -26,7 +26,7 @@ fn bench_solver_scenarios(c: &mut Criterion) {
         test_g(),
     ];
 
-    for (idx, problem) in scenarios.into_iter().enumerate() {
+    for (idx, problem) in instances.into_iter().enumerate() {
         let prefix = if problem.name.starts_with("Test") {
             problem.name.split('(').next().unwrap_or(problem.name).trim().replace(' ', "_")
         } else {
@@ -46,12 +46,11 @@ fn bench_solver_scenarios(c: &mut Criterion) {
             })
         });
 
-        let mut input = ProblemInput {
+        let input = ProblemInput {
             items: problem.items,
             capacities: problem.capacities,
             rules: problem.rules,
             target_value: problem.target_val,
-            strategy: mitsukeru::SolverStrategy::default(),
         };
 
         group.bench_with_input(BenchmarkId::new("Opt_Mixed", &id), &input, |b, inp| {
@@ -61,18 +60,18 @@ fn bench_solver_scenarios(c: &mut Criterion) {
             })
         });
 
-        input.strategy = mitsukeru::SolverStrategy::Pure;
         group.bench_with_input(BenchmarkId::new("Opt_Pure", &id), &input, |b, inp| {
             b.iter(|| {
-                let optimizer = Optimizer::new(black_box(inp));
+                let optimizer = Optimizer::new(black_box(inp))
+                    .with_strategy(mitsukeru::SolverStrategy::Pure);
                 optimizer.solve()
             })
         });
 
-        input.strategy = mitsukeru::SolverStrategy::Info;
         group.bench_with_input(BenchmarkId::new("Opt_Info", &id), &input, |b, inp| {
             b.iter(|| {
-                let optimizer = Optimizer::new(black_box(inp));
+                let optimizer = Optimizer::new(black_box(inp))
+                    .with_strategy(mitsukeru::SolverStrategy::Heuristic);
                 optimizer.solve()
             })
         });
@@ -81,5 +80,5 @@ fn bench_solver_scenarios(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, bench_solver_scenarios);
+criterion_group!(benches, bench_solver_instances);
 criterion_main!(benches);

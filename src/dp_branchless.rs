@@ -33,7 +33,7 @@ impl Flat2dDpSolver {
         let area = (self.cap1 + 1) * stride;
         
         let total_bits = items.len() * area;
-        let num_u64s = (total_bits + 63) / 64;
+        let num_u64s = total_bits.div_ceil(64);
         self.decision_history.resize(num_u64s, 0);
         self.decision_history.fill(0);
 

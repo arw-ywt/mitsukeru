@@ -11,7 +11,7 @@ pub struct InfeasibilityAnalyzer<'a> {
     capacities: &'a [u32],
     rules: &'a [BusinessRule],
     target_value: Option<u32>,
-    mip_best_value: u32,
+    bnb_best_value: u32,
 }
 
 impl<'a> InfeasibilityAnalyzer<'a> {
@@ -20,14 +20,14 @@ impl<'a> InfeasibilityAnalyzer<'a> {
         capacities: &'a [u32],
         rules: &'a [BusinessRule],
         target_value: Option<u32>,
-        mip_best_value: u32,
+        bnb_best_value: u32,
     ) -> Self {
         Self {
             items,
             capacities,
             rules,
             target_value,
-            mip_best_value,
+            bnb_best_value,
         }
     }
 
@@ -37,8 +37,10 @@ impl<'a> InfeasibilityAnalyzer<'a> {
             self.analyze_core::<4>()
         } else if n <= 512 {
             self.analyze_core::<8>()
-        } else {
+        } else if n <= 1024 {
             self.analyze_core::<16>()
+        } else {
+            self.analyze_core::<32>()
         }
     }
 
@@ -50,8 +52,8 @@ impl<'a> InfeasibilityAnalyzer<'a> {
         let mut conflicts = vec![BitSet::<W>::new(); n];
         let mut closure = vec![BitSet::<W>::new(); n];
 
-        for i in 0..n {
-            closure[i].set(i);
+        for (i, w) in closure.iter_mut().enumerate().take(n) {
+            w.set(i);
         }
 
         for rule in self.rules {
@@ -141,14 +143,14 @@ impl<'a> InfeasibilityAnalyzer<'a> {
                 closure[root].for_each_one(|req_id| {
                     if req_id < n {
                         let it_w = &self.items[req_id].weights;
-                        for d in 0..num_dims {
-                            bundle_weights[d] += it_w.get(d).copied().unwrap_or(0);
+                        for (d, w) in bundle_weights.iter_mut().enumerate().take(num_dims) {
+                            *w += it_w.get(d).copied().unwrap_or(0);
                         }
                     }
                 });
 
-                for d in 0..num_dims {
-                    if bundle_weights[d] > self.capacities[d] {
+                for (d, w) in bundle_weights.iter().enumerate().take(num_dims) {
+                    if *w > self.capacities[d] {
                         overflowed_dim = Some(d);
                         break;
                     }
@@ -158,13 +160,13 @@ impl<'a> InfeasibilityAnalyzer<'a> {
                 closure[root].for_each_one(|req_id| {
                     if req_id < n {
                         let it_w = &self.items[req_id].weights;
-                        for d in 0..num_dims {
-                            dyn_weights[d] += it_w.get(d).copied().unwrap_or(0);
+                        for (d, w) in dyn_weights.iter_mut().enumerate().take(num_dims) {
+                            *w += it_w.get(d).copied().unwrap_or(0);
                         }
                     }
                 });
-                for d in 0..num_dims {
-                    if dyn_weights[d] > self.capacities[d] {
+                for (d, w) in dyn_weights.iter().enumerate().take(num_dims) {
+                    if *w > self.capacities[d] {
                         overflowed_dim = Some(d);
                         bundle_weights[0] = dyn_weights[d];
                         break;
@@ -216,19 +218,18 @@ impl<'a> InfeasibilityAnalyzer<'a> {
         }
 
         let mut target_conflict = None;
-        if let Some(target) = self.target_value {
-            if self.mip_best_value < target {
+        if let Some(target) = self.target_value 
+            && self.bnb_best_value < target {
                 let msg = format!(
                     "Unachievable Target: Target value ({} pt) cannot be reached; maximum achievable score under constraints is ({} pt)",
-                    target, self.mip_best_value
+                    target, self.bnb_best_value
                 );
                 target_conflict = Some(TargetConflict {
                     target_value: target,
-                    achievable_value: self.mip_best_value,
+                    achievable_value: self.bnb_best_value,
                     message: msg,
                 });
             }
-        }
 
         let is_feasible = logical_chain_conflicts.is_empty()
             && capacity_conflicts.is_empty()

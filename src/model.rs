@@ -8,13 +8,13 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum SolverStrategy {
-    /// Automatically selects the faster strategy (`Pure` vs. `Info`) based on problem size and constraint density (default).
+    /// Automatically selects the faster strategy (`Pure` vs. `Heuristic`) based on problem size and constraint density (default).
     #[default]
     Mixed,
-    /// Exact branch-and-bound search without neural inference or primal heuristics.
+    /// Exact branch-and-bound search without graph-based structural heuristics.
     Pure,
-    /// Branch-and-bound search guided by Neural Diving, leveraging constraint graph embeddings and a greedy heuristic for an initial warm start.
-    Info,
+    /// Branch-and-bound search guided by structural heuristics, leveraging constraint graph embeddings and a greedy strategy for an initial warm start.
+    Heuristic,
 }
 
 /// ## Problem Input Configuration
@@ -24,15 +24,12 @@ pub enum SolverStrategy {
 pub struct ProblemInput {
     /// List of candidate items available for selection.
     pub items: Vec<Item>,
-    /// Capacity limits for each resource dimension (e.g., [Budget, Weight, Power]).
+    /// Capacity limits for each resource dimension.
     pub capacities: Vec<u32>,
     /// Logical business constraints governing item selections.
     pub rules: Vec<BusinessRule>,
     /// Optional target objective value to satisfy.
     pub target_value: Option<u32>,
-    /// Optimization search strategy (defaults to `Mixed` if omitted).
-    #[serde(default)]
-    pub strategy: SolverStrategy,
 }
 
 impl ProblemInput {
@@ -47,20 +44,78 @@ impl ProblemInput {
             capacities,
             rules,
             target_value,
-            strategy: SolverStrategy::default(),
         }
     }
-    
-    pub fn with_strategy(mut self, strategy: SolverStrategy) -> Self {
-        self.strategy = strategy;
-        self
+}
+
+/// ## Optimizer Configuration
+/// Parameters governing solver behavior, constraints, and search strategy.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(default)]
+pub struct OptimizerConfig {
+    /// The search strategy (e.g., Pure, Info, Mixed).
+    pub strategy: SolverStrategy,
+    /// The execution time limit in milliseconds.
+    pub time_limit_ms: Option<f64>,
+    /// The maximum number of search nodes to explore.
+    pub max_nodes: Option<u64>,
+    /// The number of top candidate solutions to retain.
+    pub top_k: Option<usize>,
+}
+
+impl Default for OptimizerConfig {
+    fn default() -> Self {
+        Self::preset_fast()
     }
 }
+
+impl OptimizerConfig {
+    /// [Preset] Ultra-fast mode optimized for synchronous Web / WASM environments (default, 2.0 ms timeout).
+    pub fn preset_fast() -> Self {
+        Self {
+            strategy: SolverStrategy::Mixed,
+            time_limit_ms: Some(if cfg!(debug_assertions) { 50.0 } else { 2.0 }),
+            max_nodes: Some(100_000),
+            top_k: None,
+        }
+    }
+
+    /// [Preset] High-quality batch processing mode (100 ms timeout, up to 1M nodes).
+    pub fn preset_accurate() -> Self {
+        Self {
+            strategy: SolverStrategy::Mixed,
+            time_limit_ms: Some(100.0),
+            max_nodes: Some(1_000_000),
+            top_k: None,
+        }
+    }
+
+    /// [Preset] Exact solution mode with unbounded search time and complete optimality proof.
+    pub fn preset_exact() -> Self {
+        Self {
+            strategy: SolverStrategy::Mixed,
+            time_limit_ms: None,
+            max_nodes: None,
+            top_k: None,
+        }
+    }
+}
+
+/// ## Optimization Request (Wasm / JSON)
+/// A unified request payload encapsulating problem data and solver configuration parameters.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct OptimizeRequest {
+    #[serde(flatten)]
+    pub problem: ProblemInput,
+    #[serde(default)]
+    pub config: Option<OptimizerConfig>,
+}
+
 
 /// ## Selectable Item
 /// Represents a decision candidate with multi-dimensional resource consumption
 /// and an associated objective value.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)] 
 pub struct Item {
     /// Unique identifier of the item (zero-based index).
     pub id: usize,
@@ -75,7 +130,7 @@ pub struct Item {
 /// ## Business Rule
 /// Logical constraints specifying dependencies or mutual exclusions between items.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "type")]
+#[serde(tag = "type", rename_all = "snake_case")]
 pub enum BusinessRule {
     /// ## Requirement Constraint
     /// Selecting `from_id` strictly requires selecting `to_id`.
@@ -147,6 +202,10 @@ pub struct Solution {
     /// Optional list of top-ranked alternative solutions (Ranked 1st to K-th).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub top_candidates: Option<Vec<CandidateSolution>>,
+    /// Theoretical upper bound on the objective value (Dual bound).
+    pub upper_bound: f64,
+    /// Relative optimality gap ((Upper Bound - Best Value) / Best Value). 0.0 if proven optimal.
+    pub optimality_gap: f64,
 }
 
 /// ## Conflict Analysis Report
@@ -209,30 +268,29 @@ pub struct TargetConflict {
 
 /// ## Optimization Error
 /// Represents an infeasible configuration or validation failure.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "type")]
 pub enum OptimizeError {
     /// The problem cannot be satisfied due to conflicting constraints.
-    Infeasible(ConflictReport),
+    Infeasible {
+        report: ConflictReport,
+    },
     /// The input parameters are malformed or invalid.
-    InvalidInput(String),
+    InvalidInput {
+        message: String,
+    },
 }
 
 impl std::fmt::Display for OptimizeError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            OptimizeError::Infeasible(report) => 
-                write!(
-                    f,
-                    "Infeasible problem: {} chain conflict(s), {} capacity conflict(s)",
-                    report.logical_chain_conflicts.len(),
-                    report.capacity_conflicts.len()
-                ),
-            OptimizeError::InvalidInput(msg) => 
-                write!(
-                    f, 
-                    "Invalid input: {}", 
-                    msg
-                ),
+            OptimizeError::Infeasible { report } => write!(
+                f,
+                "Infeasible problem: {} chain conflict(s), {} capacity conflict(s)",
+                report.logical_chain_conflicts.len(),
+                report.capacity_conflicts.len()
+            ),
+            OptimizeError::InvalidInput { message } => write!(f, "Invalid input: {}", message),
         }
     }
 }
@@ -262,7 +320,7 @@ pub struct SatReductionResult {
 /// ## MIP Solver Result
 /// Direct output returned by the standalone Branch-and-Bound solver.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct MipResult {
+pub struct BnbResult {
     pub best_value: u32,
     pub selected_item_ids: Vec<usize>,
     pub execution_time_ms: f64,

@@ -1,22 +1,32 @@
 // tests/schema_drift_test.rs
-
-use mitsukeru::ProblemInput;
-use mitsukeru::schemars::schema_for;
+use mitsukeru::{OptimizeError, OptimizeRequest, ProblemInput, Solution};
 use std::fs;
 
 #[test]
-fn generate_and_verify_schema() {
-    let current_schema = schema_for!(ProblemInput);
-    let expected_json = serde_json::to_string_pretty(&current_schema).unwrap();
-    fs::create_dir_all("schemas/v1").unwrap();
-    let schema_path = "schemas/v1/mitsukeru-schema.json";
-    let _ = fs::write(schema_path, &expected_json);
-    let committed_json = fs::read_to_string(schema_path)
-        .expect("Schema file missing.");
+fn test_export_json_schema() {
+    fs::create_dir_all("schemas").unwrap();
 
-    assert_eq!(
-        expected_json.trim(),
-        committed_json.trim(),
-        "Schema mismatch!"
-    );
+    let schema_input = schemars::schema_for!(ProblemInput);
+    fs::write(
+        "schemas/problem-input.schema.json",
+        serde_json::to_string_pretty(&schema_input).unwrap(),
+    ).unwrap();
+
+    let schema_solution = schemars::schema_for!(Solution);
+    fs::write(
+        "schemas/solution.schema.json",
+        serde_json::to_string_pretty(&schema_solution).unwrap(),
+    ).unwrap();
+
+    let schema_request = schemars::schema_for!(OptimizeRequest);
+    fs::write(
+        "schemas/optimize-request.schema.json",
+        serde_json::to_string_pretty(&schema_request).unwrap(),
+    ).unwrap();
+
+    let schema_error = schemars::schema_for!(OptimizeError);
+    fs::write(
+        "schemas/optimize-error.schema.json",
+        serde_json::to_string_pretty(&schema_error).unwrap(),
+    ).unwrap();
 }

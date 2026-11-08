@@ -2,6 +2,7 @@
 
 use crate::bitset::BitSet;
 use crate::model::{BusinessRule, Item, SolutionStatus};
+use crate::model::CandidateSolution;
 
 #[cfg(not(target_arch = "wasm32"))]
 use std::time::Instant;
@@ -30,9 +31,38 @@ struct ExactSolverCore<'a, const W: usize> {
     time_limit_ms: Option<f64>,
     start_time: Option<Instant>,
     timed_out: bool,
+    root_upper_bound: f64,
+    top_k: usize,
+    candidates: Vec<CandidateSolution>,
 }
 
 impl<'a, const W: usize> ExactSolverCore<'a, W> {
+
+    fn record_candidate(&mut self, val: u32, mask: BitSet<W>) {
+        if self.top_k <= 1 || val == 0 {
+            return;
+        }
+
+        let mut ids = Vec::new();
+        for (s_idx, it) in self.sorted_items.iter().enumerate() {
+            if mask.has(s_idx) {
+                ids.push(it.original_id);
+            }
+        }
+        ids.sort_unstable();
+
+        if !self.candidates.iter().any(|c| c.selected_item_ids == ids) {
+            self.candidates.push(CandidateSolution {
+                value: val,
+                selected_item_ids: ids,
+            });
+            self.candidates.sort_by(|a, b| b.value.cmp(&a.value));
+            if self.candidates.len() > self.top_k {
+                self.candidates.truncate(self.top_k);
+            }
+        }
+    }
+
     fn new(
         items: &[Item],
         capacities: &'a [u32],
@@ -109,7 +139,7 @@ impl<'a, const W: usize> ExactSolverCore<'a, W> {
             }
         }
 
-        Self {
+        let mut core = Self {
             capacities,
             sorted_items: internal_items,
             conflicts,
@@ -122,7 +152,14 @@ impl<'a, const W: usize> ExactSolverCore<'a, W> {
             timed_out: false,
             orig_to_sorted,
             max_nodes: None,
-        }
+            root_upper_bound: 0.0,
+            top_k: 1,
+            candidates: Vec::new(),
+        };
+
+        let initial_weights = vec![0u32; capacities.len()];
+        core.root_upper_bound = core.compute_fractional_bound(0, &initial_weights, 0);
+        core
     }
 
     fn set_initial_solution(&mut self, initial_val: u32, selected_orig_ids: &[usize]) {
@@ -136,6 +173,7 @@ impl<'a, const W: usize> ExactSolverCore<'a, W> {
             }
         }
     }
+
 
     fn solve(&mut self) -> (u32, Vec<usize>, u64, SolutionStatus) {
         let num_dims = self.capacities.len();
@@ -153,6 +191,21 @@ impl<'a, const W: usize> ExactSolverCore<'a, W> {
             }
         }
 
+        if self.top_k > 1 && self.best_value > 0 {
+            let mut best_ids = selected_ids.clone();
+            best_ids.sort_unstable();
+            if !self.candidates.iter().any(|c| c.selected_item_ids == best_ids) {
+                self.candidates.push(CandidateSolution {
+                    value: self.best_value,
+                    selected_item_ids: best_ids,
+                });
+                self.candidates.sort_by(|a, b| b.value.cmp(&a.value));
+                if self.candidates.len() > self.top_k {
+                    self.candidates.truncate(self.top_k);
+                }
+            }
+        }
+
         let status = if !self.timed_out {
             SolutionStatus::Optimal
         } else {
@@ -160,6 +213,25 @@ impl<'a, const W: usize> ExactSolverCore<'a, W> {
         };
 
         (self.best_value, selected_ids, self.explored_nodes, status)
+    }
+
+    fn upper_bound(&self) -> f64 {
+        if !self.timed_out {
+            self.best_value as f64
+        } else {
+            self.root_upper_bound.max(self.best_value as f64)
+        }
+    }
+
+    fn optimality_gap(&self) -> f64 {
+        if !self.timed_out {
+            0.0
+        } else if self.best_value > 0 {
+            let ub = self.upper_bound();
+            (ub - self.best_value as f64) / (self.best_value as f64)
+        } else {
+            1.0
+        }
     }
 
     #[inline(always)]
@@ -207,30 +279,36 @@ impl<'a, const W: usize> ExactSolverCore<'a, W> {
         current_val: u32,
         current_weights: &[u32],
     ) {
-        if let Some(limit) = self.max_nodes {
-            if self.explored_nodes >= limit {
+        if let Some(limit) = self.max_nodes 
+            && self.explored_nodes >= limit {
                 self.timed_out = true;
                 return;
             }
-        }
 
-        if (self.explored_nodes & 4095) == 0 {
-            if let (Some(start), Some(limit)) = (self.start_time, self.time_limit_ms) {
-                if start.elapsed().as_secs_f64() * 1000.0 >= limit {
+        if (self.explored_nodes & 4095) == 0 
+            && let (Some(start), Some(limit)) = (self.start_time, self.time_limit_ms) 
+                && start.elapsed().as_secs_f64() * 1000.0 >= limit {
                     self.timed_out = true;
                     return;
                 }
-            }
-        }
+            
 
         if self.timed_out {
             return;
         }
 
         self.explored_nodes += 1;
+        
+        let cutoff = if self.top_k <= 1 {
+            self.best_value as f64
+        } else if self.candidates.len() >= self.top_k {
+            self.candidates.last().map(|c| c.value as f64).unwrap_or(0.0)
+        } else {
+            0.0
+        };
 
         let upper_bound = self.compute_fractional_bound(idx, current_weights, current_val);
-        if upper_bound <= self.best_value as f64 {
+        if upper_bound <= cutoff {
             return;
         }
 
@@ -238,6 +316,9 @@ impl<'a, const W: usize> ExactSolverCore<'a, W> {
             if current_val > self.best_value {
                 self.best_value = current_val;
                 self.best_mask = current_mask;
+            }
+            if self.top_k > 1 && current_val > 0 {
+                self.record_candidate(current_val, current_mask);
             }
             return;
         }
@@ -270,17 +351,17 @@ impl<'a, const W: usize> ExactSolverCore<'a, W> {
         let mut fits = conflict_free;
 
         if fits {
-            for d in 0..num_dims {
-                next_weights[d] = current_weights.get(d).copied().unwrap_or(0);
+            for (d, w) in next_weights.iter_mut().enumerate().take(num_dims) {
+                *w = current_weights.get(d).copied().unwrap_or(0);
             }
 
             for i in 0..self.sorted_items.len() {
                 if bundle_mask.has(i) && !current_mask.has(i) {
                     bundle_added_val += self.sorted_items[i].value;
-                    for d in 0..num_dims {
-                        let w = self.sorted_items[i].weights.get(d).copied().unwrap_or(0);
-                        next_weights[d] += w;
-                        if next_weights[d] > self.capacities[d] {
+                    for (d, w) in next_weights.iter_mut().enumerate().take(num_dims) {
+                        let item_w = self.sorted_items[i].weights.get(d).copied().unwrap_or(0);
+                        *w += item_w;
+                        if *w > self.capacities[d] {
                             fits = false;
                             break;
                         }
@@ -316,6 +397,10 @@ pub struct BranchAndBoundSolver<'a> {
     time_limit_ms: Option<f64>,
     max_nodes: Option<u64>,
     pub explored_nodes: u64,
+    upper_bound: f64,
+    optimality_gap: f64,
+    pub top_k: usize,
+    candidates: Vec<CandidateSolution>,
 }
 
 impl<'a> BranchAndBoundSolver<'a> {
@@ -329,16 +414,15 @@ impl<'a> BranchAndBoundSolver<'a> {
             time_limit_ms: None,
             max_nodes: None,
             explored_nodes: 0,
+            upper_bound: 0.0,
+            optimality_gap: 0.0,
+            top_k: 1,
+            candidates: Vec::new(),
         }
     }
 
-    pub fn new_with_priorities(
-        items: &'a [Item],
-        capacities: &'a [u32],
-        rules: &'a [BusinessRule],
-        _priorities: &[f32],
-    ) -> Self {
-        Self::new(items, capacities, rules)
+    pub fn set_top_k(&mut self, k: usize) {
+        self.top_k = k;
     }
 
     pub fn set_initial_solution(&mut self, initial_val: u32, selected_orig_ids: &[usize]) {
@@ -360,15 +444,18 @@ impl<'a> BranchAndBoundSolver<'a> {
             self.solve_fixed::<4>()
         } else if n <= 512 {
             self.solve_fixed::<8>()
-        } else {
+        } else if n <= 1024 {
             self.solve_fixed::<16>()
+        } else {
+            self.solve_fixed::<32>()
         };
         self.explored_nodes = nodes;
         (val, selected, nodes, status)
     }
 
-    fn solve_fixed<const W: usize>(&self) -> (u32, Vec<usize>, u64, SolutionStatus) {
+    fn solve_fixed<const W: usize>(&mut self) -> (u32, Vec<usize>, u64, SolutionStatus) {
         let mut core = ExactSolverCore::<W>::new(self.items, self.capacities, self.rules);
+        core.top_k = self.top_k;
         if let Some(limit) = self.time_limit_ms {
             core.time_limit_ms = Some(limit);
         }
@@ -378,7 +465,23 @@ impl<'a> BranchAndBoundSolver<'a> {
         if self.initial_val > 0 {
             core.set_initial_solution(self.initial_val, &self.initial_selected_ids);
         }
-        core.solve()
+        let res = core.solve();
+        self.upper_bound = core.upper_bound();
+        self.optimality_gap = core.optimality_gap();
+        self.candidates = core.candidates;
+        res
+    }
+
+    pub fn upper_bound(&self) -> f64 {
+        self.upper_bound
+    }
+
+    pub fn optimality_gap(&self) -> f64 {
+        self.optimality_gap
+    }
+
+    pub fn take_candidates(&mut self) -> Vec<CandidateSolution> {
+        std::mem::take(&mut self.candidates)
     }
 }
 

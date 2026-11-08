@@ -13,7 +13,7 @@ const MESSAGE_PASSING_ROUNDS: usize = 2;
 const FIX_HIGH_THRESHOLD: f32 = 0.70;
 const FIX_LOW_THRESHOLD: f32 = 0.30;
 
-type HeuristicBitSet = BitSet<16>;
+type HeuristicBitSet = BitSet<32>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VariableDecision {
@@ -22,7 +22,7 @@ pub enum VariableDecision {
 }
 
 #[derive(Debug, Clone)]
-pub struct DivingPrediction {
+pub struct HeuristicPrediction {
     pub decisions: Vec<VariableDecision>,
     pub initial_best_value: u32,
     pub initial_selected_ids: Vec<usize>,
@@ -30,19 +30,19 @@ pub struct DivingPrediction {
     pub execution_time_ms: f64,
 }
 
-pub struct NeuralDivingEngine;
+pub struct GraphHeuristics;
 
-impl NeuralDivingEngine {
+impl GraphHeuristics {
     pub fn predict(
         items: &[Item],
         capacities: &[u32],
         rules: &[BusinessRule],
-    ) -> DivingPrediction {
+    ) -> HeuristicPrediction {
         let timer = Instant::now();
         let n = items.len().min(HeuristicBitSet::CAPACITY);
 
         if n == 0 {
-            return DivingPrediction {
+            return HeuristicPrediction {
                 decisions: Vec::new(),
                 initial_best_value: 0,
                 initial_selected_ids: Vec::new(),
@@ -209,7 +209,7 @@ impl NeuralDivingEngine {
 
         let elapsed_ms = timer.elapsed().as_secs_f64() * 1000.0;
 
-        DivingPrediction {
+        HeuristicPrediction {
             decisions,
             initial_best_value: initial_value,
             initial_selected_ids: initial_selected,
@@ -268,9 +268,8 @@ impl NeuralDivingEngine {
             }
 
             let mut has_conflict = false;
-            for i in 0..q_tail {
-                let item_id = bundle_queue[i];
-                for &conf in &conflicts[item_id] {
+            for w in bundle_queue.iter().take(q_tail) {
+                for &conf in &conflicts[*w] {
                     if selected_mask.has(conf) || bundle_mask.has(conf) {
                         has_conflict = true;
                         break;
@@ -289,11 +288,10 @@ impl NeuralDivingEngine {
             let mut bundle_value = 0u32;
             let mut fits = true;
 
-            for i in 0..q_tail {
-                let item_id = bundle_queue[i];
-                if !selected_mask.has(item_id) {
-                    bundle_value += items[item_id].value;
-                    for (dim, &w) in items[item_id].weights.iter().enumerate() {
+            for w in bundle_queue.iter().take(q_tail) {
+                if !selected_mask.has(*w) {
+                    bundle_value += items[*w].value;
+                    for (dim, &w) in items[*w].weights.iter().enumerate() {
                         if dim < num_dims && dim < 8 {
                             next_weights[dim] += w;
                             if next_weights[dim] > capacities[dim] {

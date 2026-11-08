@@ -1,9 +1,12 @@
 // tests/common/mod.rs
+#![allow(dead_code)]
+
 use mitsukeru::{BusinessRule, Item};
 use std::collections::BTreeSet;
 
 #[derive(Clone)]
 pub struct ProblemInstance {
+    #[allow(dead_code)]
     pub name: &'static str,
     pub items: Vec<Item>,
     pub capacities: Vec<u32>,
@@ -240,16 +243,15 @@ pub fn test_g() -> ProblemInstance {
         });
     }
 
-    let mut rules = Vec::new();
-
-    rules.push(BusinessRule::Requires { from_id: 0, to_id: 2 });
-    rules.push(BusinessRule::Requires { from_id: 1, to_id: 3 });
-    rules.push(BusinessRule::Requires { from_id: 4, to_id: 5 });
-    rules.push(BusinessRule::Requires { from_id: 6, to_id: 7 });
-    rules.push(BusinessRule::Requires { from_id: 8, to_id: 9 });
-
-    rules.push(BusinessRule::Conflicts { a_id: 0, b_id: 13 });
-    rules.push(BusinessRule::Conflicts { a_id: 1, b_id: 17 });
+    let rules = vec![
+        BusinessRule::Requires { from_id: 0, to_id: 2 },
+        BusinessRule::Requires { from_id: 1, to_id: 3 },
+        BusinessRule::Requires { from_id: 4, to_id: 5 },
+        BusinessRule::Requires { from_id: 6, to_id: 7 },
+        BusinessRule::Requires { from_id: 8, to_id: 9 },
+        BusinessRule::Conflicts { a_id: 0, b_id: 13 },
+        BusinessRule::Conflicts { a_id: 1, b_id: 17 },
+    ];
 
     ProblemInstance {
         name: "Test G (Honey Trap & Synergy, 28 items)",
@@ -536,11 +538,10 @@ pub fn test_m() -> ProblemInstance {
         for &offset in &mesh_offsets {
             let j = (i + offset) % n;
             let (min_id, max_id) = if i < j { (i, j) } else { (j, i) };
-            if min_id != max_id {
-                if !(is_opt(min_id) && is_opt(max_id)) {
+            if min_id != max_id 
+                && !(is_opt(min_id) && is_opt(max_id)) {
                     conflict_pairs.insert((min_id, max_id));
                 }
-            }
         }
     }
 

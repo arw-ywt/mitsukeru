@@ -1,9 +1,8 @@
 // tests/test_f_scaling.rs
-// cargo test --test test_f_scaling --release -- --nocapture
 
 mod common;
 use common::test_f;
-use mitsukeru::{BranchAndBoundSolver, Optimizer, ProblemInput, SolutionStatus, SolverStrategy};
+use mitsukeru::{Optimizer, ProblemInput, SolutionStatus, SolverStrategy};
 use std::time::Instant;
 
 fn format_num(val: u64) -> String {
@@ -21,24 +20,24 @@ fn format_num(val: u64) -> String {
 
 #[test]
 fn test_f_scale_sweep() {
-    println!("\n==========================================================================================");
-    println!("                           Test F Scaling & Stress Sweep Benchmark                        ");
-    println!("==========================================================================================");
+    println!("\n=====================================================================================================");
+    println!("                               Test F Scaling & Stress Sweep Benchmark                               ");
+    println!("=====================================================================================================");
     println!(
-        "{:<6} | {:<9} | {:<10} | {:<10} | {:<12} | {:<10} | {:<8}",
-        "Items", "Strategy", "Status", "Score", "Nodes", "Time (ms)", "Mnodes/s"
+        "{:<6} | {:<9} | {:<10} | {:<10} | {:<9} | {:<12} | {:<10} | {:<8}",
+        "Items", "Strategy", "Status", "Score", "Gap (%)", "Nodes", "Time (ms)", "Mnodes/s"
     );
-    println!("------------------------------------------------------------------------------------------");
+    println!("-----------------------------------------------------------------------------------------------------");
 
-    let n_list = [16, 32, 64, 128, 256, 512, 1024];
+    let n_list = [16, 32, 64, 128, 256, 512, 1024, 2048];
 
     for &n in &n_list {
         let prob = test_f(n);
 
-        for &strategy in &[SolverStrategy::Pure, SolverStrategy::Info, SolverStrategy::Mixed] {
+        for &strategy in &[SolverStrategy::Pure, SolverStrategy::Heuristic, SolverStrategy::Mixed] {
             let strat_label = match strategy {
                 SolverStrategy::Pure => "Pure",
-                SolverStrategy::Info => "Info",
+                SolverStrategy::Heuristic => "Info",
                 SolverStrategy::Mixed => "Mixed",
             };
 
@@ -47,11 +46,10 @@ fn test_f_scale_sweep() {
                 capacities: prob.capacities.clone(),
                 rules: prob.rules.clone(),
                 target_value: prob.target_val,
-                strategy,
             };
 
             let start = Instant::now();
-            let opt = Optimizer::new(&input);
+            let opt = Optimizer::new(&input).with_strategy(strategy);
             let solution = opt.solve().expect("Should solve successfully");
             let elapsed_ms = start.elapsed().as_secs_f64() * 1000.0;
 
@@ -67,12 +65,15 @@ fn test_f_scale_sweep() {
                 SolutionStatus::Approximate => "Approx",
             };
 
+            let gap_str = format!("{:.2}%", solution.optimality_gap * 100.0);
+
             println!(
-                "{:<6} | {:<9} | {:<10} | {:<10} | {:<12} | {:<10.2} | {:<8.1}",
+                "{:<6} | {:<9} | {:<10} | {:<10} | {:<9} | {:<12} | {:<10.2} | {:<8.1}",
                 n,
                 strat_label,
                 status_str,
                 format!("{} pt", solution.best_value),
+                gap_str,
                 format_num(solution.explored_nodes),
                 elapsed_ms,
                 mnodes_per_sec
@@ -84,6 +85,6 @@ fn test_f_scale_sweep() {
                 n
             );
         }
-        println!("------------------------------------------------------------------------------------------");
+        println!("-----------------------------------------------------------------------------------------------------");
     }
 }

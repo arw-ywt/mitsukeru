@@ -37,6 +37,12 @@ pub struct CnfBuilder {
     pub false_lit: Literal,
 }
 
+impl Default for CnfBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CnfBuilder {
     pub fn new() -> Self {
         let mut builder = Self {

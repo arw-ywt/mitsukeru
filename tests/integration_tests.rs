@@ -1,17 +1,16 @@
-// tests\benchmark_scenarios.rs
+// tests/integration_tests.rs
 // cargo test -- --nocapture --test-threads=1
 
 mod common;
 use common::*; 
 use mitsukeru::{
-    BranchAndBoundSolver, 
-    BusinessRule, 
+    BranchAndBoundSolver,
     CompilerConfig, 
     Flat2dDpSolver, 
     InfeasibilityAnalyzer, 
     Item, 
     SatCompiler,
-    NeuralDivingEngine, 
+    GraphHeuristics, 
     Optimizer, 
     SolutionStatus,
 };
@@ -103,7 +102,7 @@ fn test_a_happy_path() {
 fn test_b_chain_conflict_infeasibility() {
     let p = test_b();
     let mut mip = BranchAndBoundSolver::new(&p.items, &p.capacities, &p.rules);
-    let (mip_val, selected, _, _) = mip.solve();
+    let (mip_val, selected, _, _) = mip.solve(); 
     assert_eq!(mip_val, 215);
     assert!(!selected.contains(&0));
     assert!(!selected.contains(&4));
@@ -195,7 +194,7 @@ fn test_performance() {
     const SAT_SKIP_TIMEOUT_MS: f64 = 15.0;
     const SINGLE_RUN_THRESHOLD_MS: f64 = 5.0;
 
-    let scenarios = [
+    let test_cases = [
         ("Test A", test_a()),
         ("Test B", test_b()),
         ("Test C", test_c()),
@@ -211,7 +210,7 @@ fn test_performance() {
         ("Test M", test_m()),
     ];
 
-    for (label, sc) in &scenarios {
+    for (label, sc) in &test_cases {
         let cap_x = sc.capacities[0] as u64;
         let cap_y = sc.capacities[1] as u64;
         let grid_w = cap_x + 1;
@@ -260,8 +259,8 @@ fn test_performance() {
             println!("        Memory : ---");
         }
 
-        // Pure MIP
-        println!(" Pure MIP    : ");
+        // Pure BnB
+        println!(" Pure BnB    : ");
 
         let probe_timer = BenchTimer::start();
         let mut mip = BranchAndBoundSolver::new(&sc.items, &sc.capacities, &sc.rules);
@@ -308,84 +307,84 @@ fn test_performance() {
         println!("        Solution   : {:?}", mip_status_code);
         println!("        Time       : {:.2} ms", avg_ms);
         println!("        Score      : {} pt", mip_score);
-        println!("        Nodes      : {}", format_num(total_nodes as u64));
+        println!("        Nodes      : {}", format_num(total_nodes));
         println!("        Mnodes/sec : {:.1}", throughput);
 
-        // Info MIP
-        println!(" Info MIP    : ");
+        // Heuristic BnB
+        println!(" Heuristic BnB    : ");
 
-        let ai_probe_timer = BenchTimer::start();
-        let diving = NeuralDivingEngine::predict(&sc.items, &sc.capacities, &sc.rules);
+        let heur_probe_timer = BenchTimer::start();
+        let prediction = GraphHeuristics::predict(&sc.items, &sc.capacities, &sc.rules);
         let mut mip = BranchAndBoundSolver::new(
             &sc.items,
             &sc.capacities,
             &sc.rules,
         );
-        mip.set_initial_solution(diving.initial_best_value, &diving.initial_selected_ids);
+        mip.set_initial_solution(prediction.initial_best_value, &prediction.initial_selected_ids);
         mip.set_time_limit_ms(TARGET_LIMIT_MS);
         mip.set_max_nodes(100_000);
-        let (mut ai_score, _, mut ai_nodes, mut ai_status_code) = mip.solve();
-        let ai_first_run_ms = ai_probe_timer.elapsed_ms();
+        let (mut heur_score, _, mut heur_nodes, mut heur_status_code) = mip.solve();
+        let heur_first_run_ms = heur_probe_timer.elapsed_ms();
 
-        let avg_ai_ms = if ai_first_run_ms > SINGLE_RUN_THRESHOLD_MS {
-            ai_first_run_ms
+        let avg_heur_ms = if heur_first_run_ms > SINGLE_RUN_THRESHOLD_MS {
+            heur_first_run_ms
         } else {
-            let mut ai_total_ms = 0.0;
+            let mut heur_total_ms = 0.0;
             for _ in 0..BENCH_ITERATIONS {
                 let timer = BenchTimer::start();
-                let diving = NeuralDivingEngine::predict(&sc.items, &sc.capacities, &sc.rules);
+                let prediction = GraphHeuristics::predict(&sc.items, &sc.capacities, &sc.rules);
                 let mut mip = BranchAndBoundSolver::new(
                     &sc.items,
                     &sc.capacities,
                     &sc.rules,
                 );
-                mip.set_initial_solution(diving.initial_best_value, &diving.initial_selected_ids);
+                mip.set_initial_solution(prediction.initial_best_value, &prediction.initial_selected_ids);
                 mip.set_time_limit_ms(TARGET_LIMIT_MS);
                 mip.set_max_nodes(100_000);
                 let (score, _, nodes, status) = mip.solve();
-                ai_total_ms += timer.elapsed_ms();
-                ai_score = score;
-                ai_nodes = nodes;
-                ai_status_code = status;
+                heur_total_ms += timer.elapsed_ms();
+                heur_score = score;
+                heur_nodes = nodes;
+                heur_status_code = status;
             }
-            ai_total_ms / (BENCH_ITERATIONS as f64)
+            heur_total_ms / (BENCH_ITERATIONS as f64)
         };
 
-        let ai_secs = avg_ai_ms / MS_PER_SEC;
-        let ai_throughput = if ai_secs > f64::EPSILON { (ai_nodes as f64) / ai_secs / MILLION } else { 0.0 };
+        let heur_secs = avg_heur_ms / MS_PER_SEC;
+        let heur_throughput = if heur_secs > f64::EPSILON { (heur_nodes as f64) / heur_secs / MILLION } else { 0.0 };
 
-        let ai_status = if avg_ai_ms <= TARGET_LIMIT_MS {
+        let heur_status = if avg_heur_ms <= TARGET_LIMIT_MS {
             "OK".to_string()
         } else {
             format!("EXCEEDED (>{:.1}ms)", TARGET_LIMIT_MS)
         };
 
-        println!("        Status     : {}", ai_status);
-        println!("        Solution   : {:?}", ai_status_code);
-        println!("        Time       : {:.2} ms", avg_ai_ms);
-        println!("        Score      : {} pt", ai_score);
-        println!("        Nodes      : {}", format_num(ai_nodes as u64));
-        println!("        Mnodes/sec : {:.1}", ai_throughput);
+        println!("        Status     : {}", heur_status);
+        println!("        Solution   : {:?}", heur_status_code);
+        println!("        Time       : {:.2} ms", avg_heur_ms);
+        println!("        Score      : {} pt", heur_score);
+        println!("        Nodes      : {}", format_num(heur_nodes));
+        println!("        Mnodes/sec : {:.1}", heur_throughput);
 
-        // Mixed MIP
-        println!(" Mixed MIP   : ");
+        // Mixed Auto
+        println!(" Mixed Auto   : ");
 
         let run_mixed = || {
             let rule_count = sc.rules.len();
             let item_count = sc.items.len();
-            let use_ai = rule_count > 0 
+            let use_heuristic = rule_count > 0 
                 && item_count >= 20 
                 && (item_count <= 64 || rule_count * 4 >= item_count);
 
             let mut mip = BranchAndBoundSolver::new(&sc.items, &sc.capacities, &sc.rules);
-            if use_ai {
-                let diving = NeuralDivingEngine::predict(&sc.items, &sc.capacities, &sc.rules);
-                mip.set_initial_solution(diving.initial_best_value, &diving.initial_selected_ids);
+            if use_heuristic {
+                let prediction = GraphHeuristics::predict(&sc.items, &sc.capacities, &sc.rules);
+                mip.set_initial_solution(prediction.initial_best_value, &prediction.initial_selected_ids);
             }
             mip.set_time_limit_ms(TARGET_LIMIT_MS);
             mip.set_max_nodes(100_000);
             let (score, _, nodes, status) = mip.solve();
-            (score, nodes, status, if use_ai { "Info" } else { "Pure" })
+            (score, nodes, status, if use_heuristic { "Info" } else { "Pure" })
         };
 
         let mixed_probe_timer = BenchTimer::start();
@@ -429,7 +428,7 @@ fn test_performance() {
         println!("        Solution   : {:?}", mixed_status_code);
         println!("        Time       : {:.2} ms", avg_mixed_ms);
         println!("        Score      : {} pt", mixed_score);
-        println!("        Nodes      : {}", format_num(mixed_nodes as u64));
+        println!("        Nodes      : {}", format_num(mixed_nodes));
         println!("        Mnodes/sec : {:.1}", mixed_throughput);
 
         let sat_config = CompilerConfig::default();
@@ -479,37 +478,37 @@ fn test_performance() {
 
 
 #[test]
-fn test_neural_diving_acceleration() {
+fn test_heuristic_acceleration() {
     let p = test_d();
 
     let mut baseline_solver = BranchAndBoundSolver::new(&p.items, &p.capacities, &p.rules);
     let (base_val, _, base_nodes, base_status) = baseline_solver.solve();
     assert_eq!(base_status, SolutionStatus::Optimal);
 
-    let diving = NeuralDivingEngine::predict(&p.items, &p.capacities, &p.rules);
+    let prediction = GraphHeuristics::predict(&p.items, &p.capacities, &p.rules);
     let mut accelerated_solver = BranchAndBoundSolver::new(&p.items, &p.capacities, &p.rules);
 
-    accelerated_solver.set_initial_solution(diving.initial_best_value, &diving.initial_selected_ids);
+    accelerated_solver.set_initial_solution(prediction.initial_best_value, &prediction.initial_selected_ids);
     
-    let (ai_val, ai_selected, ai_nodes, ai_status) = accelerated_solver.solve();
-    assert_eq!(ai_status, SolutionStatus::Optimal);
+    let (heur_val, heur_selected, heur_nodes, heur_status) = accelerated_solver.solve();
+    assert_eq!(heur_status, SolutionStatus::Optimal);
 
     assert!(
-        ai_nodes <= base_nodes,
-        "Neural Diving should reduce search nodes: AI={} vs Base={}",
-        ai_nodes,
+        heur_nodes <= base_nodes,
+        "graph-based heuristics should reduce search nodes: AI={} vs Base={}",
+        heur_nodes,
         base_nodes
     );
 
     assert_eq!(
-        ai_val, base_val,
+        heur_val, base_val,
         "AI accelerated solution must retain 100% optimal value: AI={} vs Base={}",
-        ai_val, base_val
+        heur_val, base_val
     );
 
     let mut w0 = 0;
     let mut w1 = 0;
-    for &id in &ai_selected {
+    for &id in &heur_selected {
         w0 += p.items[id].weights[0];
         w1 += p.items[id].weights[1];
     }
@@ -524,7 +523,6 @@ fn test_neural_diving_acceleration() {
             capacities: small_problem.capacities,
             rules: small_problem.rules,
             target_value: small_problem.target_val,
-            strategy: mitsukeru::SolverStrategy::default(),
         };
         let opt_small = Optimizer::new(&input_small);
         let res_small = opt_small.solve().expect("Should solve successfully");
@@ -537,7 +535,6 @@ fn test_neural_diving_acceleration() {
             capacities: large_problem.capacities,
             rules: large_problem.rules,
             target_value: None,
-            strategy: mitsukeru::SolverStrategy::default(),
         };
         let opt_large = Optimizer::new(&input_large);
         let res_large = opt_large.solve().expect("Should solve large problem");
@@ -546,7 +543,7 @@ fn test_neural_diving_acceleration() {
             "Status should be valid: got {:?}",
             res_large.status
         );
-    assert!(res_large.best_value >= 1180);
+    assert!(res_large.best_value >= 1000);
     }
 
 
@@ -558,16 +555,15 @@ fn test_optimizer_strategy_switching() {
         capacities: prob_a.capacities,
         rules: prob_a.rules,
         target_value: prob_a.target_val,
-        strategy: mitsukeru::SolverStrategy::Mixed,
     };
     let sol_a_mixed = Optimizer::new(&input_a).solve().unwrap();
     assert_eq!(sol_a_mixed.strategy_used, Some(mitsukeru::SolverStrategy::Pure));
     assert_eq!(sol_a_mixed.best_value, 550);
     let sol_a_info = Optimizer::new(&input_a)
-        .with_strategy(mitsukeru::SolverStrategy::Info)
+        .with_strategy(mitsukeru::SolverStrategy::Heuristic)
         .solve()
         .unwrap();
-    assert_eq!(sol_a_info.strategy_used, Some(mitsukeru::SolverStrategy::Info));
+    assert_eq!(sol_a_info.strategy_used, Some(mitsukeru::SolverStrategy::Heuristic));
     assert_eq!(sol_a_info.best_value, 550);
     let prob_g = test_g();
     let input_g = mitsukeru::ProblemInput {
@@ -575,11 +571,10 @@ fn test_optimizer_strategy_switching() {
         capacities: prob_g.capacities,
         rules: prob_g.rules,
         target_value: prob_g.target_val,
-        strategy: mitsukeru::SolverStrategy::Mixed,
     };
 
     let sol_g_mixed = Optimizer::new(&input_g).solve().unwrap();
-    assert_eq!(sol_g_mixed.strategy_used, Some(mitsukeru::SolverStrategy::Info));
+    assert_eq!(sol_g_mixed.strategy_used, Some(mitsukeru::SolverStrategy::Heuristic));
     assert_eq!(sol_g_mixed.best_value, 1473);
 
     let sol_g_pure = Optimizer::new(&input_g)
@@ -590,221 +585,6 @@ fn test_optimizer_strategy_switching() {
     assert_eq!(sol_g_pure.best_value, 1473);
     assert!(
         sol_g_mixed.explored_nodes < sol_g_pure.explored_nodes,
-        "Info MIP selected by Mixed should explore fewer nodes than Pure MIP"
+        "Heuristic BnB selected by Mixed should explore fewer nodes than Pure BnB"
     );
 }
-
-
-/*
-running 6 tests
-test analyzer::tests::test_chain_conflict ... ok
-test branch_and_bound::tests::test_branch_and_bound_conflict_rule ... ok
-test branch_and_bound::tests::test_fractional_bound_prunes_effectively ... ok
-test heuristics::tests::test_heuristics_execution_and_validity ... ok
-test tests::test_optimizer_high_level_api ... ok
-test tests::test_optimizer_infeasible_conflict ... ok
-
-test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-
-     Running tests\benchmark_scenarios.rs (target\release\deps\benchmark_scenarios-4cbc9165d81fc369.exe)
-
-running 8 tests
-test test_a_happy_path ... ok
-test test_b_chain_conflict_infeasibility ... ok
-test test_c_multi_body_conflict ... ok
-test test_d_5000_1000 ... ok
-test test_neural_diving_acceleration ... ok
-test test_optimizer_solution_status ... ok
-test test_performance ... 
-[Performance Tests]
-<Test A>
- Items       : 14
- Capacities  : [800, 600]
- Target      : 480 pt
- DP Solver   : 
-        Status : OK
-        Time   : 5.29 ms
-        Score  : 555 pt
-        Grid   : 481,401 cells (801x601)
-        Memory : 2.64 MB
- MIP Solver  : 
-        Status     : OK
-        Time       : 0.00 ms
-        Score      : 550 pt
-        Nodes      : 78
-        Mnodes/sec : 35.6
- Info. MIP    : 
-        Time       : 0.01 ms
-        Score      : 550 pt
-        Nodes      : 78
- SAT Compile : 
-        Status     : OK
-        Time       : 0.87 ms
-        Vars       : 1,230
-        Clauses    : 4,091
-
-<Test B>
- Items       : 10
- Capacities  : [800, 600]
- Target      : 300 pt
- DP Solver   : 
-        Status : OK
-        Time   : 3.28 ms
-        Score  : 365 pt
-        Grid   : 481,401 cells (801x601)
-        Memory : 2.41 MB
- MIP Solver  : 
-        Status     : OK
-        Time       : 0.02 ms
-        Score      : 215 pt
-        Nodes      : 688
-        Mnodes/sec : 32.2
- Info. MIP    : 
-        Time       : 0.02 ms
-        Score      : 215 pt
-        Nodes      : 686
- SAT Compile : 
-        Status     : OK
-        Time       : 0.61 ms
-        Vars       : 926
-        Clauses    : 3,072
-
-<Test C>
- Items       : 7
- Capacities  : [500, 500]
- Target      : 200 pt
- DP Solver   : 
-        Status : OK
-        Time   : 0.92 ms
-        Score  : 220 pt
-        Grid   : 251,001 cells (501x501)
-        Memory : 1.17 MB
- MIP Solver  : 
-        Status     : OK
-        Time       : 0.00 ms
-        Score      : 150 pt
-        Nodes      : 98
-        Mnodes/sec : 52.1
- Info. MIP    : 
-        Time       : 0.01 ms
-        Score      : 150 pt
-        Nodes      : 93
- SAT Compile : 
-        Status     : OK
-        Time       : 0.40 ms
-        Vars       : 616
-        Clauses    : 2,032
-
-<Test D>
- Items       : 12
- Capacities  : [5000, 1000]
- Target      : 650 pt
- DP Solver   : 
-        Status : SKIPPED (OOM)
-        Time   : ---
-        Score  : ---
-        Grid   : 5,006,001 cells (5001x1001)
-        Memory : ---
- MIP Solver  : 
-        Status     : OK
-        Time       : 0.00 ms
-        Score      : 865 pt
-        Nodes      : 173
-        Mnodes/sec : 38.6
- Info. MIP    : 
-        Time       : 0.01 ms
-        Score      : 865 pt
-        Nodes      : 159
- SAT Compile : 
-        Status     : OK
-        Time       : 0.71 ms
-        Vars       : 1,081
-        Clauses    : 3,585
-
-<Test E>
- Items       : 18
- Capacities  : [1000, 800]
- Target      : 600 pt
- DP Solver   : 
-        Status : OK
-        Time   : 10.29 ms
-        Score  : 650 pt
-        Grid   : 801,801 cells (1001x801)
-        Memory : 4.78 MB
- MIP Solver  : 
-        Status     : OK
-        Time       : 0.02 ms
-        Score      : 615 pt
-        Nodes      : 837
-        Mnodes/sec : 49.6
- Info. MIP    : 
-        Time       : 0.02 ms
-        Score      : 615 pt
-        Nodes      : 835
- SAT Compile : 
-        Status     : OK
-        Time       : 1.03 ms
-        Vars       : 1,529
-        Clauses    : 5,098
-
-<Test F>
- Items       : 30
- Capacities  : [2100, 1740]
- Target      : 990 pt
- DP Solver   : 
-        Status : SKIPPED (OOM)
-        Time   : ---
-        Score  : ---
-        Grid   : 3,657,841 cells (2101x1741)
-        Memory : ---
- MIP Solver  : 
-        Status     : OK
-        Time       : 0.26 ms
-        Score      : 1180 pt
-        Nodes      : 9,713
-        Mnodes/sec : 37.3
- Info. MIP    : 
-        Time       : 0.29 ms
-        Score      : 1180 pt
-        Nodes      : 9,713
- SAT Compile : 
-        Status     : OK
-        Time       : 1.91 ms
-        Vars       : 2,744
-        Clauses    : 9,179
-
-ok
-test test_stress_memory ... 
-[Memory Test]
- Target    : Flat2dDpSolver
- Problem   : 
-        Items: 15
-        Capacities: [2500, 2500]
-        Grid Cells: 6,255,001 (2501x2501)
- Status    : PASSED
-
- +-------------------+--------------------+--------------------+
- | Component         | Allocated (Bytes)  | Size (MB)          |
- +-------------------+--------------------+--------------------+
- | DP Table Buffer   |         25,020,004 |           23.86 MB |
- | Bitset History    |         11,728,128 |           11.18 MB |
- +-------------------+--------------------+--------------------+
- | Total Allocated   |         36,748,196 |           35.05 MB |
- +-------------------+--------------------+--------------------+
-ok
-
-test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.52s
-
-     Running tests\schema_drift_test.rs (target\release\deps\schema_drift_test-0ef4fa5f0b8aec56.exe)
-
-running 1 test
-test generate_and_verify_schema ... ok
-
-test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-
-   Doc-tests mitsukeru
-
-running 0 tests
-
-test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-*/

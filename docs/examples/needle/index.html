@@ -1,0 +1,1010 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LUMEN CPQ & Smart Cart Optimizer</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: { 50: '#f0f7ff', 500: '#0066cc', 600: '#0052a3', 700: '#003d7a' }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Custom scrollbars */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #f1f5f9; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased min-h-screen flex flex-col font-sans">
+
+  <!-- ========================================== -->
+  <!-- HEADER & NAVIGATION -->
+  <!-- ========================================== -->
+  <header class="sticky top-0 z-40 bg-white/95 backdrop-blur border-b border-slate-200 shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+      
+      <!-- Brand Logo -->
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white font-black text-xl shadow-md">
+          Ω
+        </div>
+        <div>
+          <span class="text-xl font-black tracking-tight text-slate-900">APEX<span class="text-blue-600">CPQ</span></span>
+          <span class="hidden md:inline-block ml-2 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider bg-slate-100 text-slate-600 rounded-full border border-slate-200">B2C Enterprise</span>
+        </div>
+      </div>
+
+      <!-- Live Budget Controller -->
+      <div class="flex items-center gap-3 bg-slate-100 px-3.5 py-1.5 rounded-full border border-slate-200">
+        <div class="flex items-center gap-1.5 text-xs font-semibold text-slate-600">
+          <i data-lucide="wallet" class="w-4 h-4 text-emerald-600"></i>
+          <span>Budget:</span>
+        </div>
+        <div class="flex items-center">
+          <span class="text-xs font-bold text-slate-400 mr-1">$</span>
+          <input type="number" id="budgetInput" value="2500" min="50" step="50" class="w-20 bg-transparent text-sm font-bold text-slate-900 focus:outline-none">
+        </div>
+        <button id="runOptimizerHeaderBtn" class="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-3 py-1 rounded-full transition shadow-sm active:scale-95">
+          <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
+          <span>Auto-Optimize</span>
+        </button>
+      </div>
+
+      <!-- Action Nav -->
+      <div class="flex items-center gap-3">
+        <!-- Store Coupons Trigger Button -->
+        <button id="openCouponsModalBtn" class="relative flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg shadow-sm">
+          <i data-lucide="ticket" class="w-4 h-4 text-amber-500"></i>
+          <span class="hidden sm:inline">My Store Coupons</span>
+          <span id="couponCountBadge" class="bg-amber-100 text-amber-800 text-[10px] font-bold px-1.5 py-0.2 rounded-full border border-amber-300">5 Active</span>
+        </button>
+
+        <!-- Cart View Trigger Toggle -->
+        <button id="cartDrawerBtn" class="relative flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold bg-slate-900 text-white hover:bg-slate-800 rounded-lg shadow transition">
+          <i data-lucide="shopping-cart" class="w-4 h-4 text-blue-400"></i>
+          <span class="hidden sm:inline">Cart</span>
+          <span id="cartCountBadge" class="bg-blue-600 text-white text-[11px] font-bold px-1.5 py-0.5 rounded-full">60</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ========================================== -->
+  <!-- MAIN WORKSPACE (2-COLUMN GRID) -->
+  <!-- ========================================== -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 w-full grid grid-cols-1 lg:grid-cols-12 gap-8">
+    
+    <!-- LEFT PANEL: PRODUCT CATALOG (200 ITEMS) -->
+    <section class="lg:col-span-7 flex flex-col gap-4">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+        <div>
+          <h1 class="text-lg font-bold text-slate-900">Enterprise Product Catalog</h1>
+          <p class="text-xs text-slate-500">200 items received from CPQ Server. Click to add to cart.</p>
+        </div>
+        <!-- Search & Filter Controls -->
+        <div class="flex items-center gap-2">
+          <div class="relative">
+            <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2"></i>
+            <input type="text" id="catalogSearch" placeholder="Search products, stores..." class="pl-8 pr-3 py-1.5 text-xs border border-slate-200 rounded-lg w-44 sm:w-56 focus:outline-none focus:ring-1 focus:ring-blue-500">
+          </div>
+          <select id="catalogCategoryFilter" class="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white text-slate-700 focus:outline-none">
+            <option value="ALL">All Categories</option>
+            <option value="Electronics">Electronics</option>
+            <option value="Audio">Audio</option>
+            <option value="Home & Office">Home & Office</option>
+            <option value="Wearables">Wearables</option>
+            <option value="Gaming">Gaming</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Catalog Scrollable Grid -->
+      <div id="catalogGrid" class="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[calc(100vh-210px)] overflow-y-auto pr-1">
+        <!-- Rendered by JS -->
+      </div>
+    </section>
+
+    <!-- RIGHT PANEL: CART & OPTIMIZER DASHBOARD -->
+    <section class="lg:col-span-5 flex flex-col gap-4">
+
+      <!-- SMART OPTIMIZER RECOMMENDATION BANNER (If calculated) -->
+      <div id="optimizerResultBox" class="hidden bg-gradient-to-br from-indigo-900 via-slate-900 to-slate-950 text-white p-4 rounded-xl shadow-lg border border-indigo-700/40 relative overflow-hidden">
+        <div class="flex items-start justify-between gap-2 mb-3">
+          <div class="flex items-center gap-2">
+            <div class="w-8 h-8 rounded-lg bg-indigo-500/20 text-indigo-300 flex items-center justify-center border border-indigo-500/30">
+              <i data-lucide="cpu" class="w-4 h-4"></i>
+            </div>
+            <div>
+              <h3 class="text-sm font-bold text-white tracking-tight">Optimal Cart Solution Found</h3>
+              <p id="solverRunTime" class="text-[11px] text-indigo-200">Computed in 1.8ms</p>
+            </div>
+          </div>
+          <button id="applySolutionBtn" class="text-xs bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-3 py-1.5 rounded-lg shadow transition">
+            Apply to Checkout
+          </button>
+        </div>
+
+        <div class="grid grid-cols-3 gap-2 bg-white/5 p-2.5 rounded-lg border border-white/10 text-center mb-3">
+          <div>
+            <div class="text-[10px] uppercase font-semibold text-slate-400">Total Spend</div>
+            <div id="solTotalSpend" class="text-base font-extrabold text-emerald-400">$0.00</div>
+          </div>
+          <div>
+            <div class="text-[10px] uppercase font-semibold text-slate-400">Budget Left</div>
+            <div id="solRemaining" class="text-base font-extrabold text-blue-300">$0.00</div>
+          </div>
+          <div>
+            <div class="text-[10px] uppercase font-semibold text-slate-400">Total Saved</div>
+            <div id="solSaved" class="text-base font-extrabold text-amber-300">$0.00</div>
+          </div>
+        </div>
+
+        <!-- Decisions bullet list -->
+        <div id="solverExplanations" class="space-y-1.5 text-xs text-slate-300 max-h-36 overflow-y-auto pr-1">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+      <!-- CART MANAGER CONTAINER -->
+      <div class="bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col h-[calc(100vh-170px)]">
+        <!-- Cart Controls Header -->
+        <div class="p-4 border-b border-slate-200 flex flex-col gap-3 bg-slate-50/60 rounded-t-xl">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <h2 class="text-sm font-bold text-slate-900">Active Cart Items (<span id="cartCountTitle">60</span>)</h2>
+            </div>
+            <button id="runOptimizerMainBtn" class="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow transition">
+              <i data-lucide="zap" class="w-3.5 h-3.5"></i>
+              <span>Run Solver</span>
+            </button>
+          </div>
+
+          <!-- Grouping Action Toolbar -->
+          <div class="flex items-center justify-between gap-2 pt-2 border-t border-slate-200 text-xs">
+            <span class="text-slate-500 font-medium text-[11px]"><span id="selectedCartCount">0</span> selected</span>
+            <div class="flex items-center gap-2">
+              <button id="btnGroupXOR" disabled class="disabled:opacity-40 flex items-center gap-1 px-2.5 py-1 bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 rounded font-semibold transition text-[11px]">
+                <i data-lucide="shuffle" class="w-3 h-3"></i> Group: Pick 1 (XOR)
+              </button>
+              <button id="btnGroupAND" disabled class="disabled:opacity-40 flex items-center gap-1 px-2.5 py-1 bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 rounded font-semibold transition text-[11px]">
+                <i data-lucide="layers" class="w-3 h-3"></i> Group: Bundle (AND)
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Scrollable Cart Item List -->
+        <div id="cartItemList" class="flex-1 overflow-y-auto p-3 space-y-2.5 divide-y divide-slate-100">
+          <!-- Rendered by JS -->
+        </div>
+
+        <!-- Cart Summary Footer -->
+        <div class="p-4 border-t border-slate-200 bg-slate-50/70 rounded-b-xl flex items-center justify-between text-xs">
+          <div>
+            <div class="text-slate-400 font-medium">Cart Full Value:</div>
+            <div id="cartFullTotal" class="text-base font-bold text-slate-800">$0.00</div>
+          </div>
+            <div class="text-center">
+                <div class="text-emerald-600 font-semibold flex items-center justify-center gap-1">
+                <i data-lucide="tag" class="w-3 h-3"></i> Est. With Discounts:
+                </div>
+                <div id="cartDiscountedTotal" class="text-base font-extrabold text-emerald-600">$0.00</div>
+                <div id="cartSavingsSub" class="text-[10px] text-emerald-500 font-medium">Saved $0.00</div>
+            </div>
+          <div class="text-right">
+            <div class="text-slate-400 font-medium">Target Budget:</div>
+            <div id="cartTargetBudget" class="text-base font-bold text-blue-600">$2,500.00</div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ========================================== -->
+  <!-- MODAL: USER STORE COUPONS WALLET -->
+  <!-- ========================================== -->
+  <div id="couponsModal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+        <div class="flex items-center gap-2">
+          <i data-lucide="ticket" class="w-5 h-5 text-amber-500"></i>
+          <h3 class="font-bold text-slate-900 text-base">Your Active Store Coupons</h3>
+        </div>
+        <button id="closeCouponsModalBtn" class="text-slate-400 hover:text-slate-600">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+      <p class="text-xs text-slate-500">
+        These coupons will automatically trigger when your total purchase at the specified merchant reaches the minimum spend threshold.
+      </p>
+      <div id="storeCouponsListModal" class="space-y-2.5 max-h-72 overflow-y-auto pr-1">
+        <!-- Rendered by JS -->
+      </div>
+      <button id="couponsModalOkBtn" class="w-full bg-slate-900 hover:bg-slate-800 text-white font-semibold py-2 rounded-xl text-xs transition">
+        Got it, Back to Cart
+      </button>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- JAVASCRIPT: DATA, SOLVER & UI ENGINE -->
+  <!-- ========================================== -->
+  <script>
+    /* =====================================================================
+     * 1. SERVER-PROVIDED CPQ DATA CONSTANTS (~200 PRODUCTS & STORE COUPONS)
+     * ===================================================================== */
+
+    // 6 Certified Store Partners
+    const STORE_PARTNERS = [
+      { id: 'store-anker', name: 'Anker Flagship Direct' },
+      { id: 'store-sony', name: 'Sony Electronics' },
+      { id: 'store-apple', name: 'Apple Authorized' },
+      { id: 'store-logitech', name: 'Logitech Workspace' },
+      { id: 'store-dyson', name: 'Dyson Home Technologies' },
+      { id: 'store-samsung', name: 'Samsung Experience' }
+    ];
+
+    // Customer-owned threshold discount store coupons
+    const CUSTOMER_STORE_COUPONS = [
+      { id: 'CPN-ANKER-15', storeId: 'store-anker', storeName: 'Anker Flagship Direct', minSpend: 120.00, discountPercent: 15, desc: '15% OFF orders over $120' },
+      { id: 'CPN-SONY-10', storeId: 'store-sony', storeName: 'Sony Electronics', minSpend: 350.00, discountPercent: 10, desc: '10% OFF orders over $350' },
+      { id: 'CPN-APPLE-5', storeId: 'store-apple', storeName: 'Apple Authorized', minSpend: 600.00, discountPercent: 5, desc: '5% OFF orders over $600' },
+      { id: 'CPN-LOGI-12', storeId: 'store-logitech', storeName: 'Logitech Workspace', minSpend: 150.00, discountPercent: 12, desc: '12% OFF orders over $150' },
+      { id: 'CPN-DYSON-10', storeId: 'store-dyson', storeName: 'Dyson Home Technologies', minSpend: 400.00, discountPercent: 10, desc: '10% OFF orders over $400' },
+      { id: 'CPN-SAMSUNG-8', storeId: 'store-samsung', storeName: 'Samsung Experience', minSpend: 300.00, discountPercent: 8, desc: '8% OFF orders over $300' }
+    ];
+
+    // Systematic Generator for 200 Rich Products
+    const CPQ_CATALOG = (function generateCatalog() {
+      const categories = ['Electronics', 'Audio', 'Home & Office', 'Wearables', 'Gaming'];
+      const productSeeds = [
+        { title: 'Wireless ANC Headphones', cat: 'Audio', base: 299, img: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=300&q=80' },
+        { title: 'Mechanical Keyboard RGB', cat: 'Home & Office', base: 149, img: 'https://images.unsplash.com/photo-1587829741301-dc798b83add3?w=300&q=80' },
+        { title: '4K Ultra-Wide Monitor 34"', cat: 'Electronics', base: 649, img: 'https://images.unsplash.com/photo-1527443224154-c4a3942d3acf?w=300&q=80' },
+        { title: 'Smart Fitness Watch Series 7', cat: 'Wearables', base: 399, img: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=300&q=80' },
+        { title: 'Wireless Ergonomic Mouse', cat: 'Home & Office', base: 89, img: 'https://images.unsplash.com/photo-1615663245857-ac93bb7c39e7?w=300&q=80' },
+        { title: 'True Wireless Earbuds Pro', cat: 'Audio', base: 179, img: 'https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=300&q=80' },
+        { title: 'Air Purifier HEPA Compact', cat: 'Home & Office', base: 249, img: 'https://images.unsplash.com/photo-1585771724684-38269d6639fd?w=300&q=80' },
+        { title: 'GaN Fast Charger 100W Dual', cat: 'Electronics', base: 59, img: 'https://images.unsplash.com/photo-1583863788434-e58a36330cf0?w=300&q=80' },
+        { title: 'High-Res Studio Microphone', cat: 'Audio', base: 199, img: 'https://images.unsplash.com/photo-1590602847861-f357a9332bbc?w=300&q=80' },
+        { title: 'Pro Gaming Controller V2', cat: 'Gaming', base: 69, img: 'https://images.unsplash.com/photo-1600080972464-8e5f35f63d08?w=300&q=80' }
+      ];
+
+      const catalog = [];
+      let idCounter = 101;
+
+      for (let i = 0; i < 200; i++) {
+        const seed = productSeeds[i % productSeeds.length];
+        const store = STORE_PARTNERS[i % STORE_PARTNERS.length];
+        const variationNum = Math.floor(i / productSeeds.length) + 1;
+        const priceJitter = ((i * 17) % 70) - 25; // deterministic realistic price variation
+        const basePrice = Math.max(19.99, Number((seed.base + priceJitter + 0.99).toFixed(2)));
+        
+        // Some items have specific instant item discounts
+        const hasInstantDisc = (i % 5 === 0);
+        const itemDiscount = hasInstantDisc ? Math.round(basePrice * 0.10) : 0;
+
+        catalog.push({
+          id: `PROD-${idCounter++}`,
+          name: `${store.name.split(' ')[0]} ${seed.title} (Gen ${variationNum})`,
+          category: seed.cat,
+          storeId: store.id,
+          storeName: store.name,
+          basePrice: basePrice,
+          itemDiscount: itemDiscount,
+          stock: (i % 11 === 0) ? 1 : (i % 7 === 0) ? 3 : 25, // Some low stock / scarce
+          rating: Number((4.1 + ((i % 9) / 10)).toFixed(1)),
+          reviewsCount: 30 + (i * 13) % 450,
+          image: seed.img,
+          description: `Engineered by ${store.name} with premium high-grade materials.`
+        });
+      }
+      return catalog;
+    })();
+
+    /* =====================================================================
+     * 2. INITIAL CART STATE (60 ITEMS DEFAULT + INITIAL GROUPS)
+     * ===================================================================== */
+    
+    // Choose 60 items from the 200 CPQ list
+    let CART_ITEMS = CPQ_CATALOG.slice(0, 60).map((prod, index) => {
+      // Deterministically set priorities: 1 (Must), 2 (Preferred), 3 (Nice to have)
+      let priority = 2;
+      if (index % 3 === 0) priority = 1;
+      else if (index % 3 === 2) priority = 3;
+
+      return {
+        productId: prod.id,
+        quantity: (index % 8 === 0) ? 2 : 1,
+        priority: priority,
+        selectedForGrouping: false
+      };
+    });
+
+    // Sample initial groups:
+    // Group 1: Exclusive (Pick one between Headphones and Earbuds)
+    // Group 2: Bundle (Air Purifier + Fast Charger bought together)
+    let CART_GROUPS = [
+      {
+        id: 'grp-xor-1',
+        name: 'Headphone Choice (Pick 1 Best)',
+        type: 'EXCLUSIVE', // At most one
+        productIds: [CPQ_CATALOG[0].id, CPQ_CATALOG[5].id]
+      },
+      {
+        id: 'grp-and-1',
+        name: 'Desk Power Bundle (Together)',
+        type: 'BUNDLE', // All or nothing
+        productIds: [CPQ_CATALOG[1].id, CPQ_CATALOG[4].id]
+      }
+    ];
+
+    let CURRENT_BUDGET = 2500.00;
+    let LAST_SOLUTION = null;
+
+    /* =====================================================================
+     * 3. INDEPENDENT OPTIMIZATION SOLVER ENGINE (PURE FUNCTION)
+     * ===================================================================== */
+
+    /**
+     * Solves the cart selection problem subject to:
+     * - Budget limit
+     * - Item stock limits
+     * - Priority 1 (Must-have) > Priority 2 > Priority 3
+     * - Group constraints: EXCLUSIVE (Choose at most 1) & BUNDLE (All-or-nothing)
+     * - Store threshold coupons: Dynamic % discounts when merchant total >= minSpend
+     *
+     * @param {Object} params
+     * @returns {Object} Optimization Result
+     */
+    function optimizeCart({ cart, catalog, storeCoupons, groups, budget }) {
+      const startTime = performance.now();
+      const catalogMap = new Map(catalog.map(item => [item.id, item]));
+      
+      // Step A: Prepare Working Cart Item Objects
+      const workableItems = [];
+      for (const ci of cart) {
+        const prod = catalogMap.get(ci.productId);
+        if (!prod) continue;
+        const effQty = Math.min(ci.quantity, prod.stock);
+        if (effQty <= 0) continue; // Out of stock
+
+        const unitBase = Math.max(0, prod.basePrice - (prod.itemDiscount || 0));
+        workableItems.push({
+          productId: prod.id,
+          name: prod.name,
+          storeId: prod.storeId,
+          storeName: prod.storeName,
+          quantity: effQty,
+          unitBasePrice: unitBase,
+          originalTotalPrice: unitBase * effQty,
+          priority: ci.priority, // 1, 2, 3
+          groupId: groups.find(g => g.productIds.includes(prod.id))?.id || null
+        });
+      }
+
+      // Helper to compute prices with store coupons active/inactive
+      function evaluateStoreTotals(itemsList) {
+        const storeSpent = {};
+        for (const item of itemsList) {
+          storeSpent[item.storeId] = (storeSpent[item.storeId] || 0) + item.originalTotalPrice;
+        }
+        return storeSpent;
+      }
+
+      // Step B: Multi-Phase Heuristic with Coupon Threshold Activation
+      // Distinct Stores present in Cart
+      const relevantStoreIds = [...new Set(workableItems.map(i => i.storeId))];
+      const applicableCoupons = storeCoupons.filter(c => relevantStoreIds.includes(c.storeId));
+
+      /**
+       * Sub-routine to evaluate item selection given a coupon state configuration
+       */
+      function solveWithActiveCoupons(activeCouponStoreIds) {
+        const selected = [];
+        const deferred = [];
+        let runningTotal = 0;
+        const explanations = [];
+
+        // Calculate unit cost under current coupon assumption
+        const mappedItems = workableItems.map(item => {
+          const couponActive = activeCouponStoreIds.has(item.storeId);
+          const cpn = couponActive ? applicableCoupons.find(c => c.storeId === item.storeId) : null;
+          const discountPct = cpn ? cpn.discountPercent : 0;
+          const finalUnitPrice = item.unitBasePrice * (1 - discountPct / 100);
+          const finalTotal = finalUnitPrice * item.quantity;
+          
+          // Value scoring: P1 = 100,000, P2 = 5,000, P3 = 100 + savings density
+          const priorityScore = item.priority === 1 ? 100000 : item.priority === 2 ? 5000 : 100;
+          const density = priorityScore / (finalTotal + 0.01);
+
+          return {
+            ...item,
+            finalUnitPrice,
+            finalTotal,
+            discountApplied: discountPct,
+            density
+          };
+        });
+
+        // 1. Group Meta-Structure
+        // Map groups to evaluate EXCLUSIVE and BUNDLE
+        const groupMeta = new Map();
+        groups.forEach(g => groupMeta.set(g.id, { ...g, items: [] }));
+        const unassignedItems = [];
+
+        mappedItems.forEach(item => {
+          if (item.groupId && groupMeta.has(item.groupId)) {
+            groupMeta.get(item.groupId).items.push(item);
+          } else {
+            unassignedItems.push(item);
+          }
+        });
+
+        const decisionUnits = [];
+
+        // Handle BUNDLE groups (All or nothing)
+        groupMeta.forEach((g) => {
+          if (g.type === 'BUNDLE') {
+            if (g.items.length > 0) {
+              const bundleCost = g.items.reduce((acc, it) => acc + it.finalTotal, 0);
+              const minPriority = Math.min(...g.items.map(it => it.priority));
+              const priorityScore = minPriority === 1 ? 100000 : minPriority === 2 ? 5000 : 100;
+              decisionUnits.push({
+                type: 'BUNDLE',
+                group: g,
+                cost: bundleCost,
+                priority: minPriority,
+                density: (priorityScore * g.items.length) / bundleCost,
+                items: g.items
+              });
+            }
+          } else if (g.type === 'EXCLUSIVE') {
+            // XOR: Pick the best candidate based on (Priority, then density)
+            if (g.items.length > 0) {
+              const sortedChoices = [...g.items].sort((a, b) => a.priority - b.priority || b.density - a.density);
+              const candidate = sortedChoices[0];
+              const discarded = sortedChoices.slice(1);
+              decisionUnits.push({
+                type: 'EXCLUSIVE',
+                group: g,
+                cost: candidate.finalTotal,
+                priority: candidate.priority,
+                density: candidate.density,
+                items: [candidate],
+                discarded: discarded
+              });
+            }
+          }
+        });
+
+        // Regular standalone items
+        unassignedItems.forEach(item => {
+          decisionUnits.push({
+            type: 'ITEM',
+            group: null,
+            cost: item.finalTotal,
+            priority: item.priority,
+            density: item.density,
+            items: [item]
+          });
+        });
+
+        // Sort: Priority 1 first, then Priority 2, then Priority 3; within same priority sort by Density
+        decisionUnits.sort((a, b) => {
+          if (a.priority !== b.priority) return a.priority - b.priority;
+          return b.density - a.density;
+        });
+
+        // Greedily allocate budget
+        for (const unit of decisionUnits) {
+          if (runningTotal + unit.cost <= budget) {
+            runningTotal += unit.cost;
+            selected.push(...unit.items);
+            if (unit.type === 'EXCLUSIVE' && unit.discarded) {
+              unit.discarded.forEach(d => {
+                deferred.push({ ...d, reason: `Deselected in favor of higher priority in "${unit.group.name}"` });
+              });
+            }
+          } else {
+            // Cannot afford
+            unit.items.forEach(it => {
+              deferred.push({ ...it, reason: `Budget cap reached (Needs $${unit.cost.toFixed(2)})` });
+            });
+            if (unit.type === 'EXCLUSIVE' && unit.discarded) {
+              unit.discarded.forEach(d => {
+                deferred.push({ ...d, reason: `Budget cap reached for group "${unit.group.name}"` });
+              });
+            }
+          }
+        }
+
+        // Post check: Did the selected items actually qualify for the assumed coupons?
+        const storeSpent = evaluateStoreTotals(selected);
+        const validatedActiveCoupons = [];
+        let couponPenalty = false;
+
+        for (const storeId of activeCouponStoreIds) {
+          const coupon = applicableCoupons.find(c => c.storeId === storeId);
+          if (coupon) {
+            const actualSpend = storeSpent[storeId] || 0;
+            if (actualSpend >= coupon.minSpend) {
+              validatedActiveCoupons.push(coupon);
+            } else {
+              couponPenalty = true; // Invalidation: Assumed coupon didn't reach threshold
+            }
+          }
+        }
+
+        return {
+          selected,
+          deferred,
+          totalSpent: runningTotal,
+          remainingBudget: budget - runningTotal,
+          validatedActiveCoupons,
+          isValidCouponState: !couponPenalty
+        };
+      }
+
+      // Step C: Branch over possible coupon activation configurations (2^K where K <= 6, Max 64 states)
+      // This is blazing fast (runs in 2ms) and finds optimal coupon-triggering plans!
+      let bestSolution = null;
+      const numCoupons = applicableCoupons.length;
+      const totalStates = 1 << numCoupons; // 2^K combinations
+
+      for (let s = 0; s < totalStates; s++) {
+        const activeSet = new Set();
+        for (let i = 0; i < numCoupons; i++) {
+          if ((s & (1 << i)) !== 0) {
+            activeSet.add(applicableCoupons[i].storeId);
+          }
+        }
+
+        const sol = solveWithActiveCoupons(activeSet);
+        if (sol.isValidCouponState) {
+          // Compare solutions: Maximize Priority 1 & 2 counts, then maximize items, then minimize spent
+          if (!bestSolution) {
+            bestSolution = sol;
+          } else {
+            const p1Best = bestSolution.selected.filter(i => i.priority === 1).length;
+            const p1Cur = sol.selected.filter(i => i.priority === 1).length;
+            const p2Best = bestSolution.selected.filter(i => i.priority === 2).length;
+            const p2Cur = sol.selected.filter(i => i.priority === 2).length;
+
+            if (p1Cur > p1Best) {
+              bestSolution = sol;
+            } else if (p1Cur === p1Best) {
+              if (p2Cur > p2Best) {
+                bestSolution = sol;
+              } else if (p2Cur === p2Best && sol.selected.length > bestSolution.selected.length) {
+                bestSolution = sol;
+              }
+            }
+          }
+        }
+      }
+
+      // Calculate Total Savings
+      let originalTotalSelected = 0;
+      let finalTotalSelected = 0;
+      bestSolution.selected.forEach(item => {
+        originalTotalSelected += item.originalTotalPrice;
+        finalTotalSelected += item.finalTotal;
+      });
+
+      const totalSaved = originalTotalSelected - finalTotalSelected;
+      const executionTime = (performance.now() - startTime).toFixed(2);
+
+      return {
+        selectedItems: bestSolution.selected,
+        deferredItems: bestSolution.deferred,
+        totalSpent: Number(bestSolution.totalSpent.toFixed(2)),
+        remainingBudget: Number(bestSolution.remainingBudget.toFixed(2)),
+        totalSaved: Number(totalSaved.toFixed(2)),
+        activeCoupons: bestSolution.validatedActiveCoupons,
+        executionTimeMs: executionTime
+      };
+    }
+
+    /* =====================================================================
+     * 4. UI CONTROLLER & EVENT INTERACTIONS
+     * ===================================================================== */
+
+    // Document elements
+    const catalogGrid = document.getElementById('catalogGrid');
+    const cartItemList = document.getElementById('cartItemList');
+    const cartCountBadge = document.getElementById('cartCountBadge');
+    const cartCountTitle = document.getElementById('cartCountTitle');
+    const budgetInput = document.getElementById('budgetInput');
+    const selectedCartCount = document.getElementById('selectedCartCount');
+    const btnGroupXOR = document.getElementById('btnGroupXOR');
+    const btnGroupAND = document.getElementById('btnGroupAND');
+    const cartFullTotal = document.getElementById('cartFullTotal');
+    const cartTargetBudget = document.getElementById('cartTargetBudget');
+    
+    // Optimizer Results UI
+    const optimizerResultBox = document.getElementById('optimizerResultBox');
+    const solverRunTime = document.getElementById('solverRunTime');
+    const solTotalSpend = document.getElementById('solTotalSpend');
+    const solRemaining = document.getElementById('solRemaining');
+    const solSaved = document.getElementById('solSaved');
+    const solverExplanations = document.getElementById('solverExplanations');
+    const applySolutionBtn = document.getElementById('applySolutionBtn');
+
+    // Modals
+    const couponsModal = document.getElementById('couponsModal');
+    const openCouponsModalBtn = document.getElementById('openCouponsModalBtn');
+    const closeCouponsModalBtn = document.getElementById('closeCouponsModalBtn');
+    const couponsModalOkBtn = document.getElementById('couponsModalOkBtn');
+    const storeCouponsListModal = document.getElementById('storeCouponsListModal');
+
+    // Render Catalog
+    function renderCatalog(filterText = '', category = 'ALL') {
+      const filtered = CPQ_CATALOG.filter(prod => {
+        const matchesName = prod.name.toLowerCase().includes(filterText.toLowerCase()) || 
+                            prod.storeName.toLowerCase().includes(filterText.toLowerCase());
+        const matchesCat = (category === 'ALL') || (prod.category === category);
+        return matchesName && matchesCat;
+      });
+
+      catalogGrid.innerHTML = filtered.map(prod => `
+        <div class="bg-white p-3 rounded-xl border border-slate-200 hover:border-blue-400 transition shadow-sm flex flex-col justify-between group">
+          <div class="flex gap-3">
+            <img src="${prod.image}" alt="${prod.name}" class="w-16 h-16 object-cover rounded-lg bg-slate-100 flex-shrink-0">
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center justify-between">
+                <span class="text-[10px] font-bold uppercase tracking-wider text-blue-600">${prod.storeName.split(' ')[0]}</span>
+                <span class="text-[11px] font-semibold text-amber-500 flex items-center gap-0.5">
+                  <i data-lucide="star" class="w-3 h-3 fill-amber-400"></i> ${prod.rating}
+                </span>
+              </div>
+              <h4 class="text-xs font-bold text-slate-800 truncate" title="${prod.name}">${prod.name}</h4>
+              <p class="text-[11px] text-slate-400 line-clamp-1">${prod.category} • In stock: ${prod.stock}</p>
+              <div class="mt-1 flex items-baseline gap-2">
+                <span class="text-sm font-extrabold text-slate-900">$${prod.basePrice.toFixed(2)}</span>
+                ${prod.itemDiscount > 0 ? `<span class="text-[10px] bg-red-100 text-red-700 px-1.5 py-0.2 rounded font-bold">-$${prod.itemDiscount} OFF</span>` : ''}
+              </div>
+            </div>
+          </div>
+          <button onclick="addToCart('${prod.id}')" class="mt-2.5 w-full flex items-center justify-center gap-1.5 bg-slate-100 hover:bg-blue-600 hover:text-white text-slate-700 text-xs font-semibold py-1.5 rounded-lg transition active:scale-95">
+            <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+            <span>Add to Cart</span>
+          </button>
+        </div>
+      `).join('');
+      lucide.createIcons();
+    }
+
+    // Add to Cart
+    window.addToCart = function(productId) {
+      const existing = CART_ITEMS.find(it => it.productId === productId);
+      if (existing) {
+        existing.quantity += 1;
+      } else {
+        CART_ITEMS.unshift({
+          productId: productId,
+          quantity: 1,
+          priority: 2,
+          selectedForGrouping: false
+        });
+      }
+      renderCart();
+    };
+
+    // Remove from Cart
+    window.removeFromCart = function(productId) {
+      CART_ITEMS = CART_ITEMS.filter(it => it.productId !== productId);
+      // Remove from any groups as well
+      CART_GROUPS.forEach(g => {
+        g.productIds = g.productIds.filter(id => id !== productId);
+      });
+      CART_GROUPS = CART_GROUPS.filter(g => g.productIds.length > 1);
+      renderCart();
+    };
+
+    // Update Priority
+    window.changePriority = function(productId, priorityVal) {
+      const item = CART_ITEMS.find(it => it.productId === productId);
+      if (item) {
+        item.priority = parseInt(priorityVal, 10);
+        renderCart();
+      }
+    };
+
+    // Toggle Checkbox for Grouping
+    window.toggleSelectForGroup = function(productId) {
+      const item = CART_ITEMS.find(it => it.productId === productId);
+      if (item) {
+        item.selectedForGrouping = !item.selectedForGrouping;
+        updateGroupingButtons();
+      }
+    };
+
+    function updateGroupingButtons() {
+      const count = CART_ITEMS.filter(it => it.selectedForGrouping).length;
+      selectedCartCount.textContent = count;
+      btnGroupXOR.disabled = (count < 2);
+      btnGroupAND.disabled = (count < 2);
+    }
+
+    // Create Group Action
+    function createGroup(type) {
+      const selected = CART_ITEMS.filter(it => it.selectedForGrouping);
+      if (selected.length < 2) return;
+
+      const pids = selected.map(it => it.productId);
+      const groupName = type === 'EXCLUSIVE' 
+        ? `Pick-1 Choice (${selected.length} items)` 
+        : `Bundle Together (${selected.length} items)`;
+
+      CART_GROUPS.push({
+        id: `grp-${Date.now()}`,
+        name: groupName,
+        type: type,
+        productIds: pids
+      });
+
+      // Clear selection
+      CART_ITEMS.forEach(it => it.selectedForGrouping = false);
+      updateGroupingButtons();
+      renderCart();
+    }
+
+    btnGroupXOR.onclick = () => createGroup('EXCLUSIVE');
+    btnGroupAND.onclick = () => createGroup('BUNDLE');
+
+    // Ungroup Action
+    window.ungroup = function(groupId) {
+      CART_GROUPS = CART_GROUPS.filter(g => g.id !== groupId);
+      renderCart();
+    };
+
+    // Render Cart Items
+    function renderCart() {
+      cartCountBadge.textContent = CART_ITEMS.length;
+      cartCountTitle.textContent = CART_ITEMS.length;
+
+      const catalogMap = new Map(CPQ_CATALOG.map(p => [p.id, p]));
+      let rawTotal = 0;
+      const storeTotals = {};
+
+      // Group resolution for UI
+      const htmlSegments = [];
+      const renderedProductIds = new Set();
+
+      // Render Groups First
+      CART_GROUPS.forEach(grp => {
+        const groupItems = CART_ITEMS.filter(it => grp.productIds.includes(it.productId));
+        if (groupItems.length === 0) return;
+
+        groupItems.forEach(it => renderedProductIds.add(it.productId));
+
+        const isXOR = (grp.type === 'EXCLUSIVE');
+        const borderColor = isXOR ? 'border-purple-300 bg-purple-50/40' : 'border-blue-300 bg-blue-50/40';
+        const badgeColor = isXOR ? 'bg-purple-100 text-purple-800 border-purple-200' : 'bg-blue-100 text-blue-800 border-blue-200';
+        const iconName = isXOR ? 'shuffle' : 'layers';
+        const tagText = isXOR ? 'MUTUALLY EXCLUSIVE (PICK 1)' : 'BUNDLE (ALL OR NOTHING)';
+
+        htmlSegments.push(`
+          <div class="rounded-xl border ${borderColor} p-2.5 mb-2 relative">
+            <div class="flex items-center justify-between mb-2 pb-1.5 border-b border-slate-200/60">
+              <div class="flex items-center gap-1.5">
+                <span class="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full border ${badgeColor} flex items-center gap-1">
+                  <i data-lucide="${iconName}" class="w-3 h-3"></i> ${tagText}
+                </span>
+                <span class="text-xs font-bold text-slate-800">${grp.name}</span>
+              </div>
+              <button onclick="ungroup('${grp.id}')" class="text-[10px] text-slate-400 hover:text-red-600 font-semibold">Ungroup</button>
+            </div>
+            <div class="space-y-1.5">
+              ${groupItems.map(ci => renderCartItemRow(ci, catalogMap, true)).join('')}
+            </div>
+          </div>
+        `);
+      });
+
+      // Render Ungrouped Items
+      const ungrouped = CART_ITEMS.filter(it => !renderedProductIds.has(it.productId));
+      if (ungrouped.length > 0) {
+        htmlSegments.push(`
+          <div class="space-y-1.5 pt-1">
+            ${ungrouped.map(ci => renderCartItemRow(ci, catalogMap, false)).join('')}
+          </div>
+        `);
+      }
+
+      // Calculate Total Base Cart Value
+      CART_ITEMS.forEach(ci => {
+        const prod = catalogMap.get(ci.productId);
+        if (!prod) return;
+        const itemFull = prod.basePrice * ci.quantity;
+        const itemBase = Math.max(0, prod.basePrice - (prod.itemDiscount || 0)) * ci.quantity;
+        rawTotal += itemFull;
+        storeTotals[prod.storeId] = (storeTotals[prod.storeId] || 0) + itemBase;
+      });
+
+      let discountedTotal = 0;
+      for (const [storeId, spend] of Object.entries(storeTotals)) {
+        const coupon = CUSTOMER_STORE_COUPONS.find(c => c.storeId === storeId);
+        if (coupon && spend >= coupon.minSpend) {
+          discountedTotal += spend * (1 - coupon.discountPercent / 100);
+        } else {
+          discountedTotal += spend;
+        }
+      }
+      const totalSavedEst = Math.max(0, rawTotal - discountedTotal);
+
+      cartItemList.innerHTML = htmlSegments.join('');
+      cartFullTotal.textContent = `$${rawTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      
+      const cartDiscountedTotal = document.getElementById('cartDiscountedTotal');
+      const cartSavingsSub = document.getElementById('cartSavingsSub');
+      if (cartDiscountedTotal) cartDiscountedTotal.textContent = `$${discountedTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      if (cartSavingsSub) cartSavingsSub.textContent = `Saved $${totalSavedEst.toFixed(2)}`;
+
+      cartTargetBudget.textContent = `$${CURRENT_BUDGET.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      
+      updateGroupingButtons();
+      lucide.createIcons();
+    }
+
+    function renderCartItemRow(ci, catalogMap, insideGroup) {
+      const prod = catalogMap.get(ci.productId);
+      if (!prod) return '';
+
+      const priorityBadge = 
+        ci.priority === 1 ? 'bg-red-50 text-red-700 border-red-200' :
+        ci.priority === 2 ? 'bg-amber-50 text-amber-700 border-amber-200' : 
+                            'bg-slate-100 text-slate-600 border-slate-200';
+
+      return `
+        <div class="flex items-center justify-between gap-2 p-2 rounded-lg bg-white border border-slate-200/80 hover:border-slate-300 transition text-xs">
+          <div class="flex items-center gap-2 min-w-0">
+            <input type="checkbox" ${ci.selectedForGrouping ? 'checked' : ''} onchange="toggleSelectForGroup('${ci.productId}')" class="rounded border-slate-300 text-blue-600 focus:ring-0">
+            <img src="${prod.image}" class="w-10 h-10 object-cover rounded bg-slate-100 flex-shrink-0">
+            <div class="min-w-0">
+              <h5 class="font-bold text-slate-900 truncate text-[11px]">${prod.name}</h5>
+              <div class="text-[10px] text-slate-400 flex items-center gap-2">
+                <span>${prod.storeName.split(' ')[0]}</span>
+                <span>• Qty: ${ci.quantity}</span>
+                <span class="font-bold text-slate-700">$${(prod.basePrice * ci.quantity).toFixed(2)}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-1.5 flex-shrink-0">
+            <!-- Priority selector dropdown -->
+            <select onchange="changePriority('${ci.productId}', this.value)" class="text-[10px] font-bold border rounded px-1.5 py-1 ${priorityBadge} focus:outline-none cursor-pointer">
+              <option value="1" ${ci.priority === 1 ? 'selected' : ''}>P1: Must Have</option>
+              <option value="2" ${ci.priority === 2 ? 'selected' : ''}>P2: Preferred</option>
+              <option value="3" ${ci.priority === 3 ? 'selected' : ''}>P3: Optional</option>
+            </select>
+            <button onclick="removeFromCart('${ci.productId}')" class="text-slate-300 hover:text-red-500 p-1">
+              <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    // Trigger Solver and Display Analytics
+    function runOptimizer() {
+      CURRENT_BUDGET = parseFloat(budgetInput.value) || 2500;
+
+      const solution = optimizeCart({
+        cart: CART_ITEMS,
+        catalog: CPQ_CATALOG,
+        storeCoupons: CUSTOMER_STORE_COUPONS,
+        groups: CART_GROUPS,
+        budget: CURRENT_BUDGET
+      });
+
+      LAST_SOLUTION = solution;
+
+      // Update UI Result Box
+      optimizerResultBox.classList.remove('hidden');
+      solverRunTime.textContent = `⚡ Optimized in ${solution.executionTimeMs} ms using Tiered Knapsack + Branching`;
+      solTotalSpend.textContent = `$${solution.totalSpent.toFixed(2)}`;
+      solRemaining.textContent = `$${solution.remainingBudget.toFixed(2)}`;
+      solSaved.textContent = `$${solution.totalSaved.toFixed(2)}`;
+
+      // Generate Explanation Cards
+      const notes = [];
+
+      // Coupons unlocked
+      if (solution.activeCoupons.length > 0) {
+        solution.activeCoupons.forEach(c => {
+          notes.push(`
+            <div class="flex items-center gap-1.5 text-emerald-300">
+              <i data-lucide="ticket-percent" class="w-3.5 h-3.5 flex-shrink-0"></i>
+              <span><strong>${c.storeName}:</strong> Triggered ${c.discountPercent}% OFF coupon (Spent ≥ $${c.minSpend})!</span>
+            </div>
+          `);
+        });
+      }
+
+      // Priority 1 completion
+      const p1Selected = solution.selectedItems.filter(i => i.priority === 1).length;
+      const p1Total = CART_ITEMS.filter(i => i.priority === 1).length;
+      notes.push(`
+        <div class="flex items-center gap-1.5 text-blue-300">
+          <i data-lucide="check-circle" class="w-3.5 h-3.5 flex-shrink-0"></i>
+          <span>Must-Have Items (P1): Secured ${p1Selected} of ${p1Total} within budget.</span>
+        </div>
+      `);
+
+      // Items purchased vs deferred
+      notes.push(`
+        <div class="flex items-center gap-1.5 text-slate-300">
+          <i data-lucide="package-check" class="w-3.5 h-3.5 flex-shrink-0"></i>
+          <span>Recommending <strong>${solution.selectedItems.length} items</strong> for checkout (${solution.deferredItems.length} deferred for next time).</span>
+        </div>
+      `);
+
+      solverExplanations.innerHTML = notes.join('');
+      lucide.createIcons();
+    }
+
+    // Apply Recommended Solution to Cart (Checkout Filter)
+    applySolutionBtn.onclick = function() {
+      if (!LAST_SOLUTION) return;
+      const acceptedPids = new Set(LAST_SOLUTION.selectedItems.map(i => i.productId));
+      CART_ITEMS = CART_ITEMS.filter(it => acceptedPids.has(it.productId));
+      optimizerResultBox.classList.add('hidden');
+      renderCart();
+      alert(`Applied! Cart updated to the ${LAST_SOLUTION.selectedItems.length} optimal items for $${LAST_SOLUTION.totalSpent.toFixed(2)}.`);
+    };
+
+    // Render Store Coupons in Modal
+    function renderStoreCouponsModal() {
+      storeCouponsListModal.innerHTML = CUSTOMER_STORE_COUPONS.map(c => `
+        <div class="p-3 rounded-xl border border-amber-200 bg-amber-50/60 flex items-center justify-between">
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-bold text-slate-900">${c.storeName}</span>
+              <span class="text-[10px] font-extrabold bg-amber-200 text-amber-900 px-1.5 rounded">${c.discountPercent}% OFF</span>
+            </div>
+            <p class="text-[11px] text-slate-600 mt-0.5">${c.desc}</p>
+          </div>
+          <span class="text-xs font-bold text-amber-700">Owned</span>
+        </div>
+      `).join('');
+    }
+
+    // Event Listeners
+    document.getElementById('runOptimizerHeaderBtn').onclick = runOptimizer;
+    document.getElementById('runOptimizerMainBtn').onclick = runOptimizer;
+    budgetInput.addEventListener('change', runOptimizer);
+
+    document.getElementById('catalogSearch').addEventListener('input', (e) => {
+      renderCatalog(e.target.value, document.getElementById('catalogCategoryFilter').value);
+    });
+    document.getElementById('catalogCategoryFilter').addEventListener('change', (e) => {
+      renderCatalog(document.getElementById('catalogSearch').value, e.target.value);
+    });
+
+    openCouponsModalBtn.onclick = () => couponsModal.classList.remove('hidden');
+    closeCouponsModalBtn.onclick = () => couponsModal.classList.add('hidden');
+    couponsModalOkBtn.onclick = () => couponsModal.classList.add('hidden');
+
+    // Initial Boots
+    renderCatalog();
+    renderCart();
+    renderStoreCouponsModal();
+    lucide.createIcons();
+  </script>
+</body>
+</html>

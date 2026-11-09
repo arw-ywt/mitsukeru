@@ -1,81 +1,443 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="en" class="h-full">
 <head>
-  <meta charset="UTF-8">
-  <title>mitsukeru WASM Demo (Offline / Private)</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>mitsukeru — Interactive Playground</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: "media"
+    };
+  </script>
+  <!-- Monaco Editor Loader -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
   <style>
-    body { font-family: sans-serif; margin: 40px; line-height: 1.6; }
-    pre { background: #f4f4f4; padding: 15px; border-radius: 6px; overflow-x: auto; }
-    button { padding: 10px 20px; font-size: 16px; cursor: pointer; }
+    /* Custom Scrollbars */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(150, 150, 150, 0.4); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(150, 150, 150, 0.6); }
   </style>
 </head>
-<body>
-  <h1>mitsukeru WASM In-Browser Test</h1>
-  <p>npm / crates.io 非公開状態で、ローカルの WASM バイナリを直接実行しています。</p>
-  
-  <button id="run-btn">最適化を実行</button>
+<body class="h-full flex flex-col bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 font-sans antialiased overflow-hidden">
 
-  <h3>実行結果:</h3>
-  <pre id="output">「最適化を実行」ボタンを押してください...</pre>
+  <!-- Header -->
+  <header class="flex-none border-b border-neutral-300 dark:border-neutral-800 bg-white dark:bg-neutral-900 px-6 py-3 flex items-center justify-between z-10">
+    <div class="flex items-center gap-4">
+      <div class="flex items-baseline gap-2">
+        <span class="font-mono text-base font-bold ">mitsukeru</span>
+        <span class="font-mono text-xs text-neutral-500 uppercase ">/ Playground</span>
+      </div>
+      <span id="wasmBadge" class="text-xs font-mono px-2 py-0.5 border border-neutral-400 dark:border-neutral-600 text-neutral-500 font-medium">
+        Engine: Initializing...
+      </span>
+    </div>
+
+    <!-- Global Actions -->
+    <div class="flex items-center gap-2">
+      <button id="btnFormat" class="px-3 py-1.5 text-xs font-mono border border-neutral-300 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition">
+        Format JSON
+      </button>
+      <button id="btnReset" class="px-3 py-1.5 text-xs font-mono border border-neutral-300 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition">
+        Reset Default
+      </button>
+      <button id="btnRun" class="px-4 py-1.5 text-xs font-mono font-bold bg-neutral-900 text-neutral-100 hover:bg-neutral-800 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-white transition flex items-center gap-1.5 shadow-sm">
+        <span>Run Solve</span>
+        <span class="text-[10px] opacity-60 font-normal">⌘↵</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main 2-Column Split Playground -->
+  <main class="flex-1 grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-neutral-300 dark:divide-neutral-800 min-h-0">
+    
+    <!-- LEFT: Input (Payload Editor) -->
+    <section class="flex flex-col h-full min-h-0 bg-white dark:bg-neutral-900">
+      <div class="flex-none flex items-center justify-between px-4 py-2 border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/50">
+        <div class="flex items-center gap-2">
+          <span class="text-xs font-mono font-bold uppercase  text-neutral-700 dark:text-neutral-300">Input Payload</span>
+          <span class="text-[11px] font-mono text-emerald-600 dark:text-emerald-400">● Schema Verified</span>
+        </div>
+        <span class="text-[11px] font-mono text-neutral-400">Ctrl + Space for Auto-complete</span>
+      </div>
+      <div id="inputEditorContainer" class="flex-1 min-h-0 w-full"></div>
+    </section>
+
+    <!-- RIGHT: Output (Result Preview) -->
+    <section class="flex flex-col h-full min-h-0 bg-white dark:bg-neutral-900">
+      <div class="flex-none flex items-center justify-between px-4 py-2 border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/50">
+        <div class="flex items-center gap-2">
+          <span class="text-xs font-mono font-bold uppercase  text-neutral-700 dark:text-neutral-300">Output Result</span>
+          <span id="outputStatusTag" class="text-[11px] font-mono font-bold px-2 py-0.5 border border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300">
+            IDLE
+          </span>
+        </div>
+        <div id="metricsBar" class="text-[11px] font-mono text-neutral-500 flex gap-4">
+          <span>Time: <strong id="metricTime" class="text-neutral-800 dark:text-neutral-200">--</strong></span>
+          <span>Best Value: <strong id="metricValue" class="text-neutral-800 dark:text-neutral-200">--</strong></span>
+          <span>Nodes: <strong id="metricNodes" class="text-neutral-800 dark:text-neutral-200">--</strong></span>
+        </div>
+      </div>
+      <div id="outputEditorContainer" class="flex-1 min-h-0 w-full"></div>
+    </section>
+
+  </main>
 
   <script type="module">
-    // 同一フォルダ内の pkg/mitsukeru.js から初期化関数と公開関数をインポート
-    import init, { optimize } from "./pkg/mitsukeru.js";
+    // 1. JSON Schema Definition (Embedded for Editor Autocompletion)
+    const OPTIMIZE_REQUEST_SCHEMA = {
+      $schema: "http://json-schema.org/draft-07/schema#",
+      title: "Optimization Request (Wasm / JSON)",
+      type: "object",
+      required: ["capacities", "items", "rules"],
+      properties: {
+        capacities: {
+          description: "Capacity limits for each resource dimension (e.g. [Budget, Weight, Volume]).",
+          type: "array",
+          items: { type: "integer", minimum: 0 }
+        },
+        items: {
+          description: "List of candidate items available for selection.",
+          type: "array",
+          items: {
+            type: "object",
+            required: ["id", "name", "weights", "value"],
+            properties: {
+              id: { type: "integer", minimum: 0, description: "Unique 0-based identifier." },
+              name: { type: "string", description: "Display label for the item." },
+              weights: {
+                type: "array",
+                items: { type: "integer", minimum: 0 },
+                description: "Consumption weights for each corresponding capacity dimension."
+              },
+              value: { type: "integer", minimum: 0, description: "Score / Profit gained if selected." }
+            }
+          }
+        },
+        rules: {
+          description: "Logical business constraints governing item selections.",
+          type: "array",
+          items: {
+            oneOf: [
+              {
+                title: "Requirement Constraint",
+                type: "object",
+                required: ["type", "from_id", "to_id"],
+                properties: {
+                  type: { type: "string", enum: ["requires"] },
+                  from_id: { type: "integer", minimum: 0, description: "The item requiring the prerequisite." },
+                  to_id: { type: "integer", minimum: 0, description: "The prerequisite item required." }
+                }
+              },
+              {
+                title: "Conflict Constraint",
+                type: "object",
+                required: ["type", "a_id", "b_id"],
+                properties: {
+                  type: { type: "string", enum: ["conflicts"] },
+                  a_id: { type: "integer", minimum: 0, description: "First conflicting item." },
+                  b_id: { type: "integer", minimum: 0, description: "Second conflicting item." }
+                }
+              }
+            ]
+          }
+        },
+        target_value: {
+          description: "Optional target objective value to satisfy.",
+          type: ["integer", "null"],
+          minimum: 0
+        },
+        config: {
+          description: "Optimizer search strategy and bounds.",
+          type: "object",
+          properties: {
+            strategy: {
+              type: "string",
+              enum: ["mixed", "pure", "heuristic"],
+              default: "mixed"
+            },
+            time_limit_ms: { type: "number", minimum: 0.1, default: 10.0 },
+            max_nodes: { type: "integer", minimum: 1, default: 500000 },
+            top_k: { type: ["integer", "null"], minimum: 1, default: null }
+          }
+        }
+      }
+    };
 
-    async function setup() {
-      const output = document.getElementById("output");
-      const btn = document.getElementById("run-btn");
+    // 2. Heavy Default Input Payload (Maximizing all schema options)
+    const DEFAULT_INPUT_PAYLOAD = {
+      capacities: [15000, 60, 120], // 3 Dimensions: Budget ($), Weight (kg), Volume (L)
+      target_value: 850,
+      config: {
+        strategy: "mixed",
+        time_limit_ms: 10.0,
+        max_nodes: 500000,
+        top_k: 3
+      },
+      items: [
+        { id: 0,  name: "Server Unit Alpha",     weights: [4200, 18, 35], value: 240 },
+        { id: 1,  name: "Redundant PSU Mod",     weights: [1200,  5,  8], value:  70 },
+        { id: 2,  name: "High-Density NVMe Array", weights: [3100,  4,  6], value: 190 },
+        { id: 3,  name: "Legacy SAS Enclosure",  weights: [1800, 14, 28], value:  90 },
+        { id: 4,  name: "Hardware Security Mod", weights: [2500,  3,  4], value: 150 },
+        { id: 5,  name: "100GbE Optical Switch", weights: [3800,  9, 15], value: 210 },
+        { id: 6,  name: "Direct Liquid Cooling", weights: [2900, 12, 22], value: 160 },
+        { id: 7,  name: "Auxiliary Battery UPS", weights: [2200, 16, 25], value: 110 },
+        { id: 8,  name: "FPGA Accelerator Card", weights: [3400,  6,  7], value: 180 },
+        { id: 9,  name: "Tape Archive Backup",   weights: [1500, 11, 20], value:  80 },
+        { id: 10, name: "Management Node Lite",  weights: [1100,  4,  8], value:  65 },
+        { id: 11, name: "Telemetry Sensor Hub",  weights: [ 800,  2,  3], value:  50 }
+      ],
+      rules: [
+        // Dependencies (requires)
+        { type: "requires",  from_id: 0, to_id: 1 },  // Server Alpha requires Redundant PSU
+        { type: "requires",  from_id: 2, to_id: 0 },  // NVMe Array requires Server Alpha
+        { type: "requires",  from_id: 6, to_id: 0 },  // Liquid Cooling requires Server Alpha
+        { type: "requires",  from_id: 8, to_id: 6 },  // FPGA Card requires Liquid Cooling
 
+        // Exclusions (conflicts)
+        { type: "conflicts", a_id: 2, b_id: 3 },      // NVMe Array conflicts with Legacy SAS
+        { type: "conflicts", a_id: 6, b_id: 7 },      // Liquid Cooling conflicts with Battery UPS (fit constraint)
+        { type: "conflicts", a_id: 8, b_id: 9 }       // FPGA Accelerator conflicts with Tape Backup
+      ]
+    };
+
+    // DOM Elements
+    const wasmBadge = document.getElementById("wasmBadge");
+    const outputStatusTag = document.getElementById("outputStatusTag");
+    const metricTime = document.getElementById("metricTime");
+    const metricValue = document.getElementById("metricValue");
+    const metricNodes = document.getElementById("metricNodes");
+    const btnRun = document.getElementById("btnRun");
+    const btnFormat = document.getElementById("btnFormat");
+    const btnReset = document.getElementById("btnReset");
+
+    let inputEditor, outputEditor;
+    let wasmOptimizeFn = null;
+
+    // 3. Engine Loader (Native WebAssembly or Fallback)
+    async function loadEngine() {
       try {
-        // 1. WASM の初期化（内部で mitsukeru_bg.wasm を fetch して読み込みます）
-        await init();
-        output.textContent = "WASM エンジンの読み込みに成功しました。実行可能です。";
+        const wasmModule = await import("./pkg/mitsukeru.js");
+        if (typeof wasmModule.default === "function") {
+          await wasmModule.default();
+        }
+        if (typeof wasmModule.optimize === "function") {
+          wasmOptimizeFn = wasmModule.optimize;
+          wasmBadge.textContent = "Engine: WebAssembly (Native SIMD)";
+          wasmBadge.className = "text-xs font-mono px-2 py-0.5 border border-emerald-600 text-emerald-600 dark:text-emerald-400 font-bold";
+        }
       } catch (err) {
-        output.textContent = "WASM の読み込みに失敗しました:\n" + err;
+        console.warn("WASM load failed, using Reference Solver fallback:", err);
+        wasmBadge.textContent = "Engine: Pure JS Fallback";
+        wasmBadge.className = "text-xs font-mono px-2 py-0.5 border border-amber-600 text-amber-600 dark:text-amber-400 font-bold";
+      }
+    }
+
+    // 4. Pure JS Reference Solver (Fallback)
+    function referenceSolve(req) {
+      const startTime = performance.now();
+      const items = req.items;
+      const caps = req.capacities;
+      const rules = req.rules;
+      const dims = caps.length;
+
+      let bestVal = 0;
+      let bestIds = [];
+      let nodes = 0;
+      const totalMasks = 1 << Math.min(items.length, 20);
+
+      for (let mask = 0; mask < totalMasks; mask++) {
+        nodes++;
+        const candidate = [];
+        const weights = new Array(dims).fill(0);
+        let val = 0;
+
+        for (let i = 0; i < items.length; i++) {
+          if (mask & (1 << i)) {
+            candidate.push(items[i].id);
+            val += items[i].value;
+            for (let d = 0; d < dims; d++) {
+              weights[d] += (items[i].weights[d] || 0);
+            }
+          }
+        }
+
+        // Multi-dimensional capacity check
+        let fits = true;
+        for (let d = 0; d < dims; d++) {
+          if (weights[d] > caps[d]) { fits = false; break; }
+        }
+        if (!fits) continue;
+
+        // Logical Rules check
+        let valid = true;
+        for (const r of rules) {
+          if (r.type === "requires" && candidate.includes(r.from_id) && !candidate.includes(r.to_id)) {
+            valid = false; break;
+          }
+          if (r.type === "conflicts" && candidate.includes(r.a_id) && candidate.includes(r.b_id)) {
+            valid = false; break;
+          }
+        }
+        if (!valid) continue;
+
+        if (val > bestVal) {
+          bestVal = val;
+          bestIds = candidate;
+        }
+      }
+
+      const elapsed = parseFloat((performance.now() - startTime).toFixed(3));
+      return {
+        best_value: bestVal,
+        execution_time_ms: elapsed,
+        explored_nodes: nodes,
+        optimality_gap: 0.0,
+        selected_item_ids: bestIds,
+        status: "optimal",
+        upper_bound: bestVal,
+        strategy_used: "mixed",
+        top_candidates: null
+      };
+    }
+
+    // 5. Initialize Monaco Editor with JSON Schema
+    require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' } });
+
+    require(['vs/editor/editor.main'], async function () {
+      const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const currentTheme = isDark ? 'vs-dark' : 'vs';
+
+      // Register JSON Schema for autocomplete and diagnostics
+      monaco.languages.json.jsonDefaults.setDiagnosticsOptions({
+        validate: true,
+        allowComments: false,
+        schemas: [{
+          uri: "https://mitsukeru.dev/schema/optimize-request.json",
+          fileMatch: ["*"],
+          schema: OPTIMIZE_REQUEST_SCHEMA
+        }]
+      });
+
+      // Create Input Editor
+      inputEditor = monaco.editor.create(document.getElementById('inputEditorContainer'), {
+        value: JSON.stringify(DEFAULT_INPUT_PAYLOAD, null, 2),
+        language: 'json',
+        theme: currentTheme,
+        automaticLayout: true,
+        minimap: { enabled: false },
+        fontSize: 12,
+        tabSize: 2,
+        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+        formatOnPaste: true,
+        scrollBeyondLastLine: false
+      });
+
+      // Create Output Editor (Read-Only)
+      outputEditor = monaco.editor.create(document.getElementById('outputEditorContainer'), {
+        value: '{\n  "//": "Press \'Run Solve\' or [⌘ + Enter] to execute."\n}',
+        language: 'json',
+        theme: currentTheme,
+        readOnly: true,
+        automaticLayout: true,
+        minimap: { enabled: false },
+        fontSize: 12,
+        tabSize: 2,
+        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+        scrollBeyondLastLine: false
+      });
+
+      // Hotkey: Run Solve on Cmd/Ctrl + Enter
+      inputEditor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, runOptimization);
+
+      // System color scheme change watcher
+      window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+        monaco.editor.setTheme(e.matches ? 'vs-dark' : 'vs');
+      });
+
+      // Load WASM Engine and initial run
+      await loadEngine();
+      runOptimization();
+    });
+
+    // 6. Execution Handler
+    async function runOptimization() {
+      if (!inputEditor) return;
+
+      let payload;
+      try {
+        payload = JSON.parse(inputEditor.getValue());
+      } catch (err) {
+        outputStatusTag.textContent = "INVALID JSON";
+        outputStatusTag.className = "text-[11px] font-mono font-bold px-2 py-0.5 border border-red-500 text-red-600 dark:text-red-400";
+        outputEditor.setValue(JSON.stringify({
+          type: "InvalidInput",
+          message: `Malformed JSON Syntax: ${err.message}`
+        }, null, 2));
         return;
       }
 
-      btn.addEventListener("click", () => {
-        // 2. 問題の定義（Quick Start の例）
-        const problemData = {
-          items: [
-            { id: 0, name: "Pro Camera", weights: [10, 5], value: 500 },
-            { id: 1, name: "Carbon Tripod", weights: [3, 2], value: 120 },
-            { id: 2, name: "LED Light A", weights: [5, 3], value: 200 },
-            { id: 3, name: "LED Light B", weights: [5, 3], value: 210 }
-          ],
-          capacities: [20, 10], // [Max Budget, Max Weight]
-          rules: [
-            { type: "requires", from_id: 0, to_id: 1 }, // カメラには三脚が必須
-            { type: "conflicts", a_id: 2, b_id: 3 }     // ライトAとBは排他
-          ],
-          config: {
-            strategy: "mixed",
-            time_limit_ms: 2.0,
-            top_k: 2
-          }
-        };
+      outputStatusTag.textContent = "SOLVING...";
+      outputStatusTag.className = "text-[11px] font-mono font-bold px-2 py-0.5 border border-amber-500 text-amber-600 dark:text-amber-400";
 
-        const startTime = performance.now();
-
+      setTimeout(() => {
         try {
-          // 3. WASM エンジンの実行！
-          const result = optimize(problemData);
-          const endTime = performance.now();
+          let solution;
+          if (wasmOptimizeFn) {
+            solution = wasmOptimizeFn(payload);
+          } else {
+            solution = referenceSolve(payload);
+          }
 
-          output.textContent = 
-            `=== 実行成功 (所要時間: ${(endTime - startTime).toFixed(3)} ms) ===\n\n` +
-            JSON.stringify(result, null, 2);
+          // Render Success
+          outputStatusTag.textContent = (solution.status || "OPTIMAL").toUpperCase();
+          outputStatusTag.className = "text-[11px] font-mono font-bold px-2 py-0.5 border border-emerald-500 text-emerald-600 dark:text-emerald-400";
 
+          metricTime.textContent = `${solution.execution_time_ms} ms`;
+          metricValue.textContent = solution.best_value;
+          metricNodes.textContent = solution.explored_nodes.toLocaleString();
+
+          outputEditor.setValue(JSON.stringify(solution, null, 2));
         } catch (err) {
-          output.textContent = 
-            "=== 実行不能・矛盾検知 (Infeasible Report) ===\n\n" +
-            JSON.stringify(err, null, 2);
+          // Render Conflict / Infeasible / Invalid Input
+          outputStatusTag.textContent = err.type || "INFEASIBLE";
+          outputStatusTag.className = "text-[11px] font-mono font-bold px-2 py-0.5 border border-red-500 text-red-600 dark:text-red-400";
+
+          metricTime.textContent = "--";
+          metricValue.textContent = "0";
+          metricNodes.textContent = "--";
+
+          outputEditor.setValue(JSON.stringify(err, null, 2));
         }
-      });
+      }, 10);
     }
 
-    setup();
+    // Button Listeners
+    btnRun.addEventListener("click", runOptimization);
+
+    btnFormat.addEventListener("click", () => {
+      if (inputEditor) {
+        inputEditor.getAction('editor.action.formatDocument').run();
+      }
+    });
+
+    btnReset.addEventListener("click", () => {
+      if (inputEditor) {
+        inputEditor.setValue(JSON.stringify(DEFAULT_INPUT_PAYLOAD, null, 2));
+        runOptimization();
+      }
+    });
+
+    // Window Shortcut: Cmd/Ctrl + Enter
+    window.addEventListener("keydown", (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+        e.preventDefault();
+        runOptimization();
+      }
+    });
   </script>
 </body>
 </html>

@@ -44,7 +44,14 @@ fn run_f_scale_sweep_inner() {
     );
     println!(
         "| {:<6} | {:<9} | {:<10} | {:<10} | {:<9} | {:<12} | {:<10} | {:<8} |",
-        "Items ($N$)", "Strategy", "Status", "Best Value", "Gap (%)", "Explored Nodes", "Time (ms)", "Throughput (Mnodes/s)"
+        "Items ($N$)",
+        "Strategy",
+        "Status",
+        "Best Value",
+        "Gap (%)",
+        "Explored Nodes",
+        "Time (ms)",
+        "Throughput (Mnodes/s)"
     );
     println!(
         "| {:<6} | {:<9} | {:<10} | {:<10} | {:<9} | {:<12} | {:<10} | {:<8} |",

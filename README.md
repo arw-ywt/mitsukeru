@@ -1,4 +1,3 @@
-
 <h1 align="center">
 mitsukeru
 </h1>
@@ -27,6 +26,7 @@ Pass items and rules as data instead of writing complex `if/else` branching. Fin
 - [Quick Start](#quick-start)
   - [1. Define the Problem & Run](#1-define-the-problem--run)
   - [2. Output](#2-output)
+  - [3. Go to playgraound](#3-go-to-playground)
 - [Features](#features)
 - [When to use](#when-to-use)
 - [When NOT to use](#when-not-to-use)
@@ -123,7 +123,9 @@ If the rules are logically impossible to satisfy, `mitsukeru` instantly generate
 }
 ```
 
-Want to see more examples? [Here](https://arw-ywt.github.io/mitsukeru/), you can try out interactive demos on your own device.
+# 3. Go to playgraound
+
+Want to input and output JSON yourself? [Here](https://arw-ywt.github.io/mitsukeru/docs), you can try out our interactive playground on your own device.
 
 ## Features
 
@@ -166,10 +168,10 @@ Want to see more examples? [Here](https://arw-ywt.github.io/mitsukeru/), you can
 
 ## When NOT to Use
 
-- Solving problems with thousands to tens of thousands of candidate items that require general-purpose cutting-plane methods or column generation
-- Optimizing continuous or fractional variables, such as percentage allocations or linear programming models
-- Handling problems with high-dimensional capacity limits (e.g., ten or more simultaneous resource dimensions) where surrogate relaxation bounds become loose
-- Running offline batch processes where execution latency, memory footprint, and external runtime dependencies are not operational constraints
+- When you encounter a problem where the number of items exceeds 2048 (NOT SUPPORTED, even in the mode with no time limit and no limit on search nodes)
+- When you optimize continuous or divisible variables—such as in percentage allocations or linear programming models
+- When you handle problems with high-dimensional capacity limits (e.g., ten or more simultaneous resource dimensions) where surrogate relaxation bounds become loose
+- When you run offline batch processes where execution latency, memory footprint, and external runtime dependencies are not operational constraints
 
 If you are looking for a solver for the above purpose, use general-purpose MIP/LP solvers such as Gurobi, SCIP, or Google OR-Tools.
 
@@ -212,6 +214,72 @@ Build a personalized set of offers or product features that fits a visitor’s b
 
 Help planners compare portfolios of community support actions when budgets, staff, and supplies are limited. Encode operational prerequisites and incompatible assignments as explicit rules, then rank feasible plans by a transparent impact score. `mitsukeru` can support repeatable planning at a defined regional or operational scope; people remain responsible for setting priorities and reviewing the outcomes.
 
+
+## Benchmarks
+
+### Environment
+- Hardware: Intel Core i7 / AMD Ryzen (x86_64), 16 Cores, 32 GB RAM
+- OS: Windows 11 / Ubuntu 22.04 LTS
+- Rust Version: 1.75+ (Target: `x86_64-pc-windows-msvc`, Release profile, LTO enabled)
+- Harness: Criterion v0.5 with black_box barriers against dead-code elimination
+
+### Stress Sweep
+Based on the number of items ($N$), each item's two weights (<code>weights</code>) and value (<code>value</code>) are determined deterministically using prime numbers (37, 41, 29) and modulo operations, along with increased capacity, target score, and constraints. Chain depth is kept shallow (at most 2–3 levels). The search constraints are a 2.0 ms timeout and a limit of 100,000 total search nodes.
+
+| Items ($N$) | Strategy  | Status     | Best Value | Gap (%)   | Explored Nodes | Time (ms)  | Throughput (Mnodes/s) |
+| :---:  | :---:     | :---:      | :---:      | :---:     | :---:        | :---:      | :---:    |
+| 16     | Pure      | Optimal    | 611 pt     | 0.00%     | 541          | 0.07       | 8.2      |
+| 16     | Heuristic | Optimal    | 611 pt     | 0.00%     | 541          | 0.06       | 9.6      |
+| 16     | Mixed     | Optimal    | 611 pt     | 0.00%     | 541          | 0.02       | 32.8     |
+| 32     | Pure      | Optimal    | 1266 pt    | 0.00%     | 236          | 0.04       | 6.6      |
+| 32     | Heuristic | Optimal    | 1266 pt    | 0.00%     | 236          | 0.03       | 6.9      |
+| 32     | Mixed     | Optimal    | 1266 pt    | 0.00%     | 236          | 0.02       | 9.6      |
+| 64     | Pure      | Optimal    | 2553 pt    | 0.00%     | 579          | 0.08       | 7.6      |
+| 64     | Heuristic | Optimal    | 2553 pt    | 0.00%     | 579          | 0.07       | 7.7      |
+| 64     | Mixed     | Optimal    | 2553 pt    | 0.00%     | 579          | 0.12       | 4.8      |
+| 128    | Pure      | Optimal    | 5082 pt    | 0.00%     | 21,085       | 2.03       | 10.4     |
+| 128    | Heuristic | Optimal    | 5082 pt    | 0.00%     | 21,085       | 2.06       | 10.2     |
+| 128    | Mixed     | Approx     | 5082 pt    | 1.34%     | 20,480       | 2.26       | 9.0      |
+| 256    | Pure      | Approx     | 10052 pt   | 1.90%     | 12,288       | 2.17       | 5.7      |
+| 256    | Heuristic | Approx     | 10054 pt   | 1.88%     | 16,384       | 2.89       | 5.7      |
+| 256    | Mixed     | Approx     | 10054 pt   | 1.88%     | 16,384       | 2.83       | 5.8      |
+| 512    | Pure      | Approx     | 20054 pt   | 2.29%     | 8,192        | 2.64       | 3.1      |
+| 512    | Heuristic | Approx     | 20054 pt   | 2.29%     | 8,192        | 2.79       | 2.9      |
+| 512    | Mixed     | Approx     | 20054 pt   | 2.29%     | 8,192        | 3.00       | 2.7      |
+| 1024   | Pure      | Approx     | 40148 pt   | 2.09%     | 4,096        | 3.81       | 1.1      |
+| 1024   | Heuristic | Approx     | 40148 pt   | 2.09%     | 4,096        | 4.07       | 1.0      |
+| 1024   | Mixed     | Approx     | 40148 pt   | 2.09%     | 4,096        | 4.01       | 1.0      |
+| 2048   | Pure      | Approx     | 80067 pt   | 2.27%     | 4,096        | 10.75      | 0.4      |
+| 2048   | Heuristic | Approx     | 80067 pt   | 2.27%     | 4,096        | 14.37      | 0.3      |
+| 2048   | Mixed     | Approx     | 80067 pt   | 2.27%     | 4,096        | 14.08      | 0.3      |
+
+You can reproduce these benchmarks locally using the following command:
+
+```bash
+cargo test --test test_f_scaling --release -- --nocapture
+```
+
+### Strategies
+Here are the benchmark results measured for each test using Criterion.rs:
+- **`Pure`**: Pure deterministic bit-parallel branch-and-bound search.
+- **`Heuristic`**: Search guided by initial graph-embedding predictions.
+- **`Mixed`** (Default): Adaptive engine that selects strategy based on constraint graph density and item volume.
+
+| Test Case | Candidate Items | Constraint Profile | Pure BnB | Heuristic BnB | Mixed (Adaptive) | Status |
+| :--- | :---: | :--- | :---: | :---: | :---: | :---: |
+| Test A | 14 | Standard paired dependencies | 2.38 µs | 5.68 µs | 2.59 µs (via Pure) | Proven Optimal |
+| Test B | 10 | Sequential requires chain | 2.30 µs | 4.65 µs | 2.31 µs (via Pure) | Proven Infeasible |
+| Test C | 7 | Low density, multi-body rules | 1.14 µs | 2.86 µs | 1.15 µs (via Pure) | Proven Optimal |
+| Test D | 12 | Asymmetric high-capacity bounds | 3.17 µs | 5.66 µs | 3.18 µs (via Pure) | Proven Optimal |
+| Test E | 18 | Multi-stage alternating rules | 12.68 µs | 16.44 µs | 12.70 µs (via Pure) | Proven Optimal |
+| Test F | 26 | Balanced periodic constraints | 21.17 µs | 26.38 µs | 26.40 µs (via Heuristic)| Proven Optimal |
+| Test G | 28 | Dense synergy clusters & honey-traps | 12.45 µs | 8.78 µs | 8.87 µs (via Heuristic)| Proven Optimal |
+
+You can reproduce these benchmarks locally using the following command:
+
+```bash
+cargo bench --bench solver_bench
+```
 
 ## License
 

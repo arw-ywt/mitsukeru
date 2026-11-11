@@ -1,0 +1,21 @@
+{
+  "name": "mitsukeru",
+  "type": "module",
+  "description": "Deterministic, explainable constraint optimization engine (WebAssembly)",
+  "version": "0.1.0",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/arw-ywt/mitsukeru"
+  },
+  "files": [
+    "mitsukeru_bg.wasm",
+    "mitsukeru.js",
+    "mitsukeru.d.ts"
+  ],
+  "main": "mitsukeru.js",
+  "types": "mitsukeru.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}

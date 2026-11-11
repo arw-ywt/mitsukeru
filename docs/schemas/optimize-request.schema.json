@@ -1,0 +1,234 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Optimization Request (Wasm / JSON)",
+  "description": "A unified request payload encapsulating problem data and solver configuration parameters.",
+  "type": "object",
+  "required": [
+    "capacities",
+    "items",
+    "rules"
+  ],
+  "properties": {
+    "capacities": {
+      "description": "Capacity limits for each resource dimension.",
+      "type": "array",
+      "items": {
+        "type": "integer",
+        "format": "uint32",
+        "minimum": 0.0
+      }
+    },
+    "config": {
+      "default": null,
+      "anyOf": [
+        {
+          "$ref": "#/definitions/OptimizerConfig"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "items": {
+      "description": "List of candidate items available for selection.",
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/Item"
+      }
+    },
+    "rules": {
+      "description": "Logical business constraints governing item selections.",
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/BusinessRule"
+      }
+    },
+    "target_value": {
+      "description": "Optional target objective value to satisfy.",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "uint32",
+      "minimum": 0.0
+    }
+  },
+  "definitions": {
+    "BusinessRule": {
+      "title": "Business Rule",
+      "description": "Logical constraints specifying dependencies or mutual exclusions between items.",
+      "oneOf": [
+        {
+          "title": "Requirement Constraint",
+          "description": "Selecting `from_id` strictly requires selecting `to_id`.",
+          "type": "object",
+          "required": [
+            "from_id",
+            "to_id",
+            "type"
+          ],
+          "properties": {
+            "from_id": {
+              "description": "The item requiring the prerequisite.",
+              "type": "integer",
+              "format": "uint",
+              "minimum": 0.0
+            },
+            "to_id": {
+              "description": "The item that must be included as a prerequisite.",
+              "type": "integer",
+              "format": "uint",
+              "minimum": 0.0
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "requires"
+              ]
+            }
+          }
+        },
+        {
+          "title": "Conflict Constraint",
+          "description": "Items `a_id` and `b_id` are mutually exclusive and cannot be selected together.",
+          "type": "object",
+          "required": [
+            "a_id",
+            "b_id",
+            "type"
+          ],
+          "properties": {
+            "a_id": {
+              "description": "The first conflicting item.",
+              "type": "integer",
+              "format": "uint",
+              "minimum": 0.0
+            },
+            "b_id": {
+              "description": "The second conflicting item.",
+              "type": "integer",
+              "format": "uint",
+              "minimum": 0.0
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "conflicts"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "Item": {
+      "title": "Selectable Item",
+      "description": "Represents a decision candidate with multi-dimensional resource consumption and an associated objective value.",
+      "type": "object",
+      "required": [
+        "id",
+        "name",
+        "value",
+        "weights"
+      ],
+      "properties": {
+        "id": {
+          "description": "Unique identifier of the item (zero-based index).",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0.0
+        },
+        "name": {
+          "description": "Display name or human-readable label of the item.",
+          "type": "string"
+        },
+        "value": {
+          "description": "Value, profit, or score gained if this item is selected.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "weights": {
+          "description": "Consumption weights for each corresponding capacity dimension.",
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0.0
+          }
+        }
+      }
+    },
+    "OptimizerConfig": {
+      "title": "Optimizer Configuration",
+      "description": "Parameters governing solver behavior, constraints, and search strategy.",
+      "type": "object",
+      "properties": {
+        "max_nodes": {
+          "description": "The maximum number of search nodes to explore.",
+          "default": 100000,
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "strategy": {
+          "description": "The search strategy (e.g., Pure, Heuristic, Mixed).",
+          "default": "mixed",
+          "allOf": [
+            {
+              "$ref": "#/definitions/SolverStrategy"
+            }
+          ]
+        },
+        "time_limit_ms": {
+          "description": "The execution time limit in milliseconds.",
+          "default": 50.0,
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "top_k": {
+          "description": "The number of top candidate solutions to retain.",
+          "default": null,
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint",
+          "minimum": 0.0
+        }
+      }
+    },
+    "SolverStrategy": {
+      "title": "Solver Optimization Strategy",
+      "description": "Execution mode controlling the search and optimization algorithm.",
+      "oneOf": [
+        {
+          "description": "Automatically selects the faster strategy (`Pure` vs. `Heuristic`) based on problem size and constraint density (default).",
+          "type": "string",
+          "enum": [
+            "mixed"
+          ]
+        },
+        {
+          "description": "Exact branch-and-bound search without graph-based structural heuristics.",
+          "type": "string",
+          "enum": [
+            "pure"
+          ]
+        },
+        {
+          "description": "Branch-and-bound search guided by structural heuristics, leveraging constraint graph embeddings and a greedy strategy for an initial warm start.",
+          "type": "string",
+          "enum": [
+            "heuristic"
+          ]
+        }
+      ]
+    }
+  }
+}

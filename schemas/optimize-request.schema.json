@@ -184,7 +184,7 @@
         },
         "time_limit_ms": {
           "description": "The execution time limit in milliseconds.",
-          "default": 2.0,
+          "default": 50.0,
           "type": [
             "number",
             "null"

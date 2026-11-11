@@ -848,15 +848,11 @@ const solution = optimize({
   </main>
 
   <!-- Technical Footer -->
-  <footer class="border-t border-neutral-300 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-900 py-8 px-4 sm:px-8 text-xs text-neutral-600 dark:text-neutral-400">
+  <footer class="border-t border-neutral-300 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-900 py-2 px-4 sm:px-8 text-xs text-neutral-600 dark:text-neutral-400">
     <div class="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-4 sm:space-y-0">
       <div>
-        <span class="font-mono font-bold text-neutral-800 dark:text-neutral-200">
-          mitsukeru
-        </span>
-      </div>
-      <div class="max-w-[200px]">
-        <img src="../../../assets/logo.svg"/>
+        <img class="max-w-[300px] dark:hidden" src="../../../assets/logo.svg" alt="mitsukeru" />
+        <img class="max-w-[300px] hidden dark:block" src="../../../assets/logo_dark.svg" alt="mitsukeru" />
       </div>
     </div>
   </footer>
@@ -911,8 +907,7 @@ const solution = optimize({
 
     async function initializeEngine() {
       try {
-        // Attempt dynamic import from relative path ./pkg/mitsukeru_wasm.js
-        const wasmPkg = await import("../../pkg/mitsukeru_wasm.js");
+        const wasmPkg = await import("../../pkg/mitsukeru.js");
         if (typeof wasmPkg.default === "function") {
           await wasmPkg.default();
         }

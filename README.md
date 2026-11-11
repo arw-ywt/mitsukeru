@@ -157,7 +157,7 @@ If the business constraints are logically contradictory, `mitsukeru` traces the 
 
 ### 4. Playground
 
-Want to try JSON inputs and see JSON outputs in real time? Visit our [Playground](https://arw-ywt.github.io/mitsukeru/docs)!
+Want to try JSON inputs and see JSON outputs in real time? Visit our [Playground](https://arw-ywt.github.io/mitsukeru/)!
 
 ## Key Features
 

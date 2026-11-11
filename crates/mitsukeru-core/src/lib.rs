@@ -25,7 +25,7 @@ pub use clock::SystemClock;
 pub use dp_branchless::Flat2dDpSolver;
 pub use heuristics::{GraphHeuristics, VariableDecision};
 pub use model::*;
-pub use sat_compiler::{CompilerConfig, SatCompiler};
+pub use sat_compiler::{CompilerConfig, SatCompileError, SatCompiler};
 
 pub const MAX_SUPPORTED_ITEMS: usize = 2048;
 
@@ -273,8 +273,12 @@ pub fn solve_branchless_dp_core(input: &ProblemInput) -> Result<DpResult, String
     })
 }
 
-#[must_use]
-pub fn compile_to_3sat_core(input: &ProblemInput) -> SatReductionResult {
+/// Reduces the combinatorial problem into 3-SAT (DIMACS CNF format).
+///
+/// # Errors
+///
+/// Returns an error if any business rule contains an out-of-bounds item ID or if variable allocation overflows.
+pub fn compile_to_3sat_core(input: &ProblemInput) -> Result<SatReductionResult, SatCompileError> {
     let target_val = input.target_value.unwrap_or(0);
     let config = CompilerConfig::default();
 
@@ -284,14 +288,14 @@ pub fn compile_to_3sat_core(input: &ProblemInput) -> SatReductionResult {
         &input.rules,
         target_val,
         &config,
-    );
+    )?;
 
-    SatReductionResult {
+    Ok(SatReductionResult {
         num_variables: num_vars,
         num_clauses,
         dimacs_cnf: dimacs,
         variable_map: var_map,
-    }
+    })
 }
 
 #[must_use]

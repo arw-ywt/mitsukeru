@@ -456,7 +456,8 @@ fn bench_sat_compile(sc: &ProblemInstance, mip_score: u32, target_limit: f64, ti
     let sat_config = CompilerConfig::default();
     let target = sc.target_val.unwrap_or(mip_score);
     let probe_timer = BenchTimer::start();
-    let _ = SatCompiler::compile(&sc.items, &sc.capacities, &sc.rules, target, &sat_config);
+    let _ = SatCompiler::compile(&sc.items, &sc.capacities, &sc.rules, target, &sat_config)
+        .expect("SAT compilation should succeed");
     let probe_ms = probe_timer.elapsed_ms();
 
     println!(" SAT Compile : ");
@@ -467,7 +468,8 @@ fn bench_sat_compile(sc: &ProblemInstance, mip_score: u32, target_limit: f64, ti
         println!("        Clauses    : ---");
     } else {
         for _ in 0..WARMUP_ITERATIONS {
-            let _ = SatCompiler::compile(&sc.items, &sc.capacities, &sc.rules, target, &sat_config);
+            let _ = SatCompiler::compile(&sc.items, &sc.capacities, &sc.rules, target, &sat_config)
+                .expect("SAT compilation should succeed");
         }
 
         let mut sat_total_ms = 0.0;
@@ -477,7 +479,8 @@ fn bench_sat_compile(sc: &ProblemInstance, mip_score: u32, target_limit: f64, ti
         for _ in 0..BENCH_ITERATIONS {
             let timer = BenchTimer::start();
             let (_, vars, clauses, _) =
-                SatCompiler::compile(&sc.items, &sc.capacities, &sc.rules, target, &sat_config);
+                SatCompiler::compile(&sc.items, &sc.capacities, &sc.rules, target, &sat_config)
+                    .expect("SAT compilation should succeed");
             sat_total_ms += timer.elapsed_ms();
             sat_vars = vars;
             sat_clauses = clauses;

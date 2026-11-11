@@ -20,14 +20,14 @@ mitsukeru
 
 A zero-C-dependency, deterministic, safety-critical constraint optimization engine written in 100% pure Rust.
 <br/>
-Pass items and business rules as declarative data instead of writing entangled `if/else` logic. Finds mathematically optimal combinations in microseconds and automatically explains why constraints cannot be satisfied. Runs anywhere from bare-metal microcontrollers (`no_std`) and high-throughput backend services to browsers via WebAssembly.
+Pass items and business rules as declarative data instead of writing entangled `if/else` or `switch/case` logic. Finds mathematically optimal combinations in microseconds and automatically explains why constraints cannot be satisfied. Runs anywhere from bare-metal microcontrollers (`no_std`) and high-throughput backend services to browsers via WebAssembly.
 
 - [Installation](#installation)
 - [Quick Start](#quick-start)
   - [Rust (Native / Embedded)](#1-rust-native--embedded)
   - [TypeScript / JavaScript (Browser / Node.js)](#2-typescript--javascript-browser--nodejs)
   - [Infeasibility Diagnostic Output](#3-infeasibility-diagnostic-output)
-  - [Interactive Playground](#4-interactive-playground)
+  - [Playground](#4-playground)
 - [Key Features](#key-features)
 - [Safety-Critical & Architecture](#safety-critical--architecture)
 - [When to Use](#when-to-use)
@@ -74,7 +74,7 @@ fn main() -> Result<(), Box<dyn core::error::Error>> {
         capacities: vec![20, 10], // [Max Budget, Max Weight]
         rules: vec![
             BusinessRule::Requires { from_id: 0, to_id: 1 }, // Camera requires Tripod
-            BusinessRule::Conflicts { a_id: 2, b_id: 3 },    // Light A and B cannot be mixed
+            BusinessRule::Conflicts { a_id: 2, b_id: 3 }, // Light A and B cannot be mixed
         ],
         target_value: None,
     };
@@ -114,7 +114,7 @@ try {
     capacities: [20, 10], // [Max Budget, Max Weight]
     rules: [
       { type: "requires", from_id: 0, to_id: 1 }, // Camera requires Tripod
-      { type: "conflicts", a_id: 2, b_id: 3 }     // Light A and B cannot be mixed
+      { type: "conflicts", a_id: 2, b_id: 3 } // Light A and B cannot be mixed
     ],
     config: {
       strategy: "mixed",
@@ -123,7 +123,7 @@ try {
     }
   });
 
-  console.log("Optimal Score:", result.best_value);       // 830
+  console.log("Optimal Score:", result.best_value); // 830
   console.log("Selected IDs :", result.selected_item_ids); // [0, 1, 3]
 } catch (err: any) {
   if (err.type === "Infeasible") {
@@ -134,7 +134,7 @@ try {
 
 ### 3. Infeasibility Diagnostic Output
 
-If the business constraints are logically contradictory, `mitsukeru` never fails silently. It pinpoint-traces the exact cause and returns an actionable report:
+If the business constraints are logically contradictory, `mitsukeru` traces the exact cause and returns an actionable report:
 
 ```json
 {
@@ -155,45 +155,49 @@ If the business constraints are logically contradictory, `mitsukeru` never fails
 }
 ```
 
-### 4. Interactive Playground
+### 4. Playground
 
-Want to try JSON inputs and visualize constraint graphs in real time?  
-Visit our [Interactive WebAssembly Playground](https://arw-ywt.github.io/mitsukeru/docs).
+Want to try JSON inputs and see JSON outputs in real time? Visit our [Playground](https://arw-ywt.github.io/mitsukeru/docs)!
 
 ## Key Features
 
-- Sub-Millisecond Bit-Parallel Engine  
-  Powered by a SIMD/bit-parallel branch-and-bound core (`BitSet<const W>`), evaluating millions of states per second with zero heap allocations in inner hot loops.
+- Sub-Millisecond Bit-Parallel Engine
 
-- Embedded & `no_std` First-Class Support  
-  The core calculation engine is completely decoupled from OS primitives (`#![no_std] + alloc`). Deployable to bare-metal microcontrollers (ARM Cortex-M, RISC-V, ESP32) with zero C dependencies.
+Powered by a SIMD/bit-parallel branch-and-bound core (`BitSet<const W>`), evaluating millions of states per second with zero heap allocations in inner hot loops.
 
-- Dependency Injected Clock (Safety-Critical)  
-  Adheres to the *"Never Lie, No Silent Fallback"* principle. OS/browser clocks are automatically used in standard environments, while custom hardware timers (e.g., SysTick) can be injected via the `Clock` trait in embedded or deterministic unit testing environments.
+- Embedded & `no_std` First-Class Support
 
-- Mixed Auto (Auto-Tuning Hybrid Engine)  
-  Analyzes constraint graph density and item size at runtime. Dispatches pure branch-and-bound for sparse problems and automatically enables structural graph heuristics to prune dense combinatorial search spaces by up to 100x.
+The core calculation engine is completely decoupled from OS primitives (`#![no_std] + alloc`). Deployable to bare-metal microcontrollers (ARM Cortex-M, RISC-V, ESP32) with zero C dependencies.
 
-- Top-K Alternative Options  
-  Retrieves the top-$K$ best distinct configurations (Plan A, Plan B, Plan C) ordered by objective score, enabling flexible human-in-the-loop decision-making.
+- Dependency Injected Clock
 
-- WebAssembly Ready  
-  Compiles cleanly to `wasm32-unknown-unknown` for high-speed client-side execution in browsers, Cloudflare Workers, and serverless edge functions.
+OS/browser clocks are automatically used in standard environments, while custom hardware timers (e.g., SysTick) can be injected via the `Clock` trait in embedded or deterministic unit testing environments.
 
-## Safety-Critical & Architecture
+- Mixed Auto
+
+Analyzes constraint graph density and item size at runtime. Dispatches pure branch-and-bound for sparse problems and automatically enables structural graph heuristics to prune dense combinatorial search spaces by up to 100x.
+
+- Top-K Alternative Options
+
+Retrieves the top-$K$ best distinct configurations (Plan A, Plan B, Plan C) ordered by objective score, enabling flexible human-in-the-loop decision-making.
+
+- WebAssembly Ready
+
+Compiles cleanly to `wasm32-unknown-unknown` for high-speed client-side execution in browsers, Cloudflare Workers, and serverless edge functions.
+
+## Architecture
 
 The repository is architected as an isolated Cargo Workspace:
 
 ```text
 mitsukeru/
 ├── crates/
-│   ├── mitsukeru-core/     # Pure Rust, no_std, zero-unsafe, safety-critical core
-│   └── mitsukeru-wasm/     # Thin wasm-bindgen and JS serialization wrapper
-├── docs/                   # WebAssembly demo playground
-└── benches/                # Criterion micro-benchmarks
+│   ├── mitsukeru-core/
+│   └── mitsukeru-wasm/
+├── docs/
+└── benches/
 ```
 
-### Hardware Clock Injection (`no_std` / Testing)
 In `no_std` environments without an OS clock, specify a hardware timer or step counter by implementing the `Clock` trait:
 
 ```rust
@@ -202,7 +206,6 @@ use mitsukeru::{Clock, Optimizer};
 struct MyHardwareSysTick;
 impl Clock for MyHardwareSysTick {
     fn now_micros(&self) -> u64 {
-        // Read raw microcontroller hardware timer register
         unsafe { read_systick_register() }
     }
 }
@@ -217,7 +220,7 @@ let solution = Optimizer::new(&input)
 
 ## When to Use
 
-### Architecture & Rule Management
+### Rule Management
 - Replacing complex, nested `if/else` or `switch/case` trees with data-driven declarative rules.
 - Decoupling configuration logic, eligibility checks, and bundle constraints from application binaries.
 - Needing root-cause conflict explanations when configurations fail.
@@ -236,11 +239,11 @@ let solution = Optimizer::new(&input)
 ## Options & Presets
 
 ### Presets
-- `Optimizer::new(&input).preset_fast()` *(Default)*  
+- `Optimizer::new(&input).preset_fast()` *(Default)*
   Optimized for synchronous / UI execution. Wall-clock budget of 2.0 ms, max 100,000 nodes.
-- `Optimizer::new(&input).preset_accurate()`  
+- `Optimizer::new(&input).preset_accurate()`
   High-accuracy mode. Wall-clock budget of 100.0 ms, max 1,000,000 nodes.
-- `Optimizer::new(&input).preset_exact()`  
+- `Optimizer::new(&input).preset_exact()`
   Unbounded exploration proving mathematically global optimality.
 
 ### Fluent Methods

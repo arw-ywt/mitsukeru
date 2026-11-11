@@ -1,10 +1,43 @@
 // sat_compiler.rs
 
+use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
-use core::fmt::Write;
+use core::fmt::{self, Write};
 
 use crate::model::{BusinessRule, Item};
+
+/// Errors that can occur during 3-SAT reduction.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SatCompileError {
+    /// A business rule references an item index outside the valid range.
+    InvalidRuleIndex { id: usize, item_count: usize },
+    /// The number of CNF variables exceeded the system addressable range.
+    VariableOverflow,
+    /// Internal invariant was violated during circuit synthesis.
+    InvariantViolation,
+}
+
+impl fmt::Display for SatCompileError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidRuleIndex { id, item_count } => {
+                write!(f, "Invalid rule index {id} (total items: {item_count})")
+            }
+            Self::VariableOverflow => {
+                write!(f, "Total SAT variable count overflowed memory limits")
+            }
+            Self::InvariantViolation => {
+                write!(
+                    f,
+                    "mitsukeru (sat_compiler): internal circuit invariant violated"
+                )
+            }
+        }
+    }
+}
+
+impl core::error::Error for SatCompileError {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Literal(pub i32);
@@ -150,21 +183,57 @@ impl CnfBuilder {
 pub struct SatCompiler;
 
 impl SatCompiler {
-    /// Allocates a new variable and returns its identifier.
+    /// Compiles a combinatorial constraint optimization problem into a 3-SAT (DIMACS CNF) reduction.
     ///
-    /// # Panics
+    /// Encodes item selections, mutual exclusions/prerequisites, capacity upper-bounds,
+    /// and target value lower-bounds into satisfiability clauses.
     ///
-    /// Panics under the following conditions:
-    /// - The variable management index (`next_var`) of the internal CNF builder is invalid (less than 1).
-    /// - The total number of generated variables exceeds the representable range of the `usize` type (i.e., an overflow occurs).
-    #[must_use]
+    /// # Errors
+    ///
+    /// Returns [`SatCompileError::InvalidRuleIndex`] if any rule references an item ID >= `items.len()`.
+    /// Returns [`SatCompileError::VariableOverflow`] if variable allocation exceeds `usize::MAX`.
     pub fn compile(
         items: &[Item],
         capacities: &[u32],
         rules: &[BusinessRule],
         target_val: u32,
         config: &CompilerConfig,
-    ) -> (String, usize, usize, Vec<String>) {
+    ) -> Result<(String, usize, usize, Vec<String>), SatCompileError> {
+        let n = items.len();
+
+        for rule in rules {
+            match *rule {
+                BusinessRule::Requires { from_id, to_id } => {
+                    if from_id >= n {
+                        return Err(SatCompileError::InvalidRuleIndex {
+                            id: from_id,
+                            item_count: n,
+                        });
+                    }
+                    if to_id >= n {
+                        return Err(SatCompileError::InvalidRuleIndex {
+                            id: to_id,
+                            item_count: n,
+                        });
+                    }
+                }
+                BusinessRule::Conflicts { a_id, b_id } => {
+                    if a_id >= n {
+                        return Err(SatCompileError::InvalidRuleIndex {
+                            id: a_id,
+                            item_count: n,
+                        });
+                    }
+                    if b_id >= n {
+                        return Err(SatCompileError::InvalidRuleIndex {
+                            id: b_id,
+                            item_count: n,
+                        });
+                    }
+                }
+            }
+        }
+
         let mut builder = CnfBuilder::new();
 
         let item_vars: Vec<Literal> = items
@@ -173,14 +242,14 @@ impl SatCompiler {
             .collect();
 
         for rule in rules {
-            match rule {
+            match *rule {
                 BusinessRule::Requires { from_id, to_id } => {
-                    builder.add_clause(vec![Literal(-item_vars[*from_id].0), item_vars[*to_id]]);
+                    builder.add_clause(vec![Literal(-item_vars[from_id].0), item_vars[to_id]]);
                 }
                 BusinessRule::Conflicts { a_id, b_id } => {
                     builder.add_clause(vec![
-                        Literal(-item_vars[*a_id].0),
-                        Literal(-item_vars[*b_id].0),
+                        Literal(-item_vars[a_id].0),
+                        Literal(-item_vars[b_id].0),
                     ]);
                 }
             }
@@ -192,6 +261,7 @@ impl SatCompiler {
             .chain(core::iter::once(target_val))
             .max()
             .unwrap_or(0);
+
         let use_parameterized = match config.mode {
             CircuitExpansionMode::ForceUnroll => false,
             CircuitExpansionMode::Parameterized => true,
@@ -218,27 +288,46 @@ impl SatCompiler {
             }
         }
 
-        assert!(
-            builder.next_var >= 1,
-            "Financial/SAT Error: next_var must be at least 1, but got {}",
-            builder.next_var
-        );
+        if target_val > 0 {
+            let val_terms: Vec<(Literal, u32)> = items
+                .iter()
+                .enumerate()
+                .map(|(idx, it)| (item_vars[idx], it.value))
+                .collect();
+
+            let val_sum_bits = Self::build_linear_sum_tree(&mut builder, &val_terms, "val_sum");
+
+            let target_bits = if use_parameterized {
+                Self::alloc_parameter_bus(&mut builder, target_val, "param_target_val")
+            } else {
+                Self::to_constant_bits(&builder, target_val)
+            };
+
+            builder.add_less_than_or_equal(&target_bits, &val_sum_bits);
+        }
+
+        if builder.next_var < 1 {
+            return Err(SatCompileError::InvariantViolation);
+        }
 
         let raw_num_vars = builder.next_var - 1;
-        let num_vars = usize::try_from(raw_num_vars).unwrap_or(0);
+
+        let num_vars =
+            usize::try_from(raw_num_vars).map_err(|_| SatCompileError::VariableOverflow)?;
 
         let num_clauses = builder.clauses.len();
         let mut dimacs = String::new();
-        let _ = writeln!(dimacs, "p cnf {num_vars} {num_clauses}");
+        writeln!(dimacs, "p cnf {num_vars} {num_clauses}")
+            .map_err(|_| SatCompileError::VariableOverflow)?;
 
         for c in &builder.clauses {
             for lit in c {
-                let _ = write!(dimacs, "{} ", lit.0);
+                write!(dimacs, "{} ", lit.0).map_err(|_| SatCompileError::VariableOverflow)?;
             }
             dimacs.push_str("0\n");
         }
 
-        (dimacs, num_vars, num_clauses, builder.var_descriptions)
+        Ok((dimacs, num_vars, num_clauses, builder.var_descriptions))
     }
 
     fn build_linear_sum_tree(

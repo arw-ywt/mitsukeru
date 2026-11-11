@@ -47,15 +47,19 @@ pub fn solve_branchless_dp(input_value: JsValue) -> Result<JsValue, JsValue> {
     Ok(serde_wasm_bindgen::to_value(&res)?)
 }
 
-/// Reduces the input problem to 3-SAT (in DIMACS CNF format).
+/// Reduces the combinatorial problem into 3-SAT (in DIMACS CNF format).
 ///
 /// # Errors
 ///
-/// Returns a [`JsValue`] if the serialization or deserialization of a JS object fails.
+/// Returns a [`JsValue`] error in the following cases:
+/// - If deserialization of the JavaScript input object fails.
+/// - If any business rule references an invalid/out-of-bounds item index.
+/// - If internal variable allocation overflows memory bounds.
+/// - If serialization of the resulting CNF object into JavaScript fails.
 #[wasm_bindgen]
 pub fn compile_to_3sat(input_value: JsValue) -> Result<JsValue, JsValue> {
     let input: ProblemInput = serde_wasm_bindgen::from_value(input_value)?;
-    let res = compile_to_3sat_core(&input);
+    let res = compile_to_3sat_core(&input).map_err(|e| JsValue::from_str(&e.to_string()))?;
     Ok(serde_wasm_bindgen::to_value(&res)?)
 }
 

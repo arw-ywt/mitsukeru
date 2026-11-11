@@ -201,38 +201,7 @@ impl SatCompiler {
     ) -> Result<(String, usize, usize, Vec<String>), SatCompileError> {
         let n = items.len();
 
-        for rule in rules {
-            match *rule {
-                BusinessRule::Requires { from_id, to_id } => {
-                    if from_id >= n {
-                        return Err(SatCompileError::InvalidRuleIndex {
-                            id: from_id,
-                            item_count: n,
-                        });
-                    }
-                    if to_id >= n {
-                        return Err(SatCompileError::InvalidRuleIndex {
-                            id: to_id,
-                            item_count: n,
-                        });
-                    }
-                }
-                BusinessRule::Conflicts { a_id, b_id } => {
-                    if a_id >= n {
-                        return Err(SatCompileError::InvalidRuleIndex {
-                            id: a_id,
-                            item_count: n,
-                        });
-                    }
-                    if b_id >= n {
-                        return Err(SatCompileError::InvalidRuleIndex {
-                            id: b_id,
-                            item_count: n,
-                        });
-                    }
-                }
-            }
-        }
+        Self::validate_rules(rules, n)?;
 
         let mut builder = CnfBuilder::new();
 
@@ -311,11 +280,57 @@ impl SatCompiler {
         }
 
         let raw_num_vars = builder.next_var - 1;
-
         let num_vars =
             usize::try_from(raw_num_vars).map_err(|_| SatCompileError::VariableOverflow)?;
-
         let num_clauses = builder.clauses.len();
+
+        let dimacs = Self::format_dimacs(&builder, num_vars, num_clauses)?;
+
+        Ok((dimacs, num_vars, num_clauses, builder.var_descriptions))
+    }
+
+    /// Validates that all rule indices refer to valid item bounds.
+    fn validate_rules(rules: &[BusinessRule], item_count: usize) -> Result<(), SatCompileError> {
+        for rule in rules {
+            match *rule {
+                BusinessRule::Requires { from_id, to_id } => {
+                    if from_id >= item_count {
+                        return Err(SatCompileError::InvalidRuleIndex {
+                            id: from_id,
+                            item_count,
+                        });
+                    }
+                    if to_id >= item_count {
+                        return Err(SatCompileError::InvalidRuleIndex {
+                            id: to_id,
+                            item_count,
+                        });
+                    }
+                }
+                BusinessRule::Conflicts { a_id, b_id } => {
+                    if a_id >= item_count {
+                        return Err(SatCompileError::InvalidRuleIndex {
+                            id: a_id,
+                            item_count,
+                        });
+                    }
+                    if b_id >= item_count {
+                        return Err(SatCompileError::InvalidRuleIndex {
+                            id: b_id,
+                            item_count,
+                        });
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn format_dimacs(
+        builder: &CnfBuilder,
+        num_vars: usize,
+        num_clauses: usize,
+    ) -> Result<String, SatCompileError> {
         let mut dimacs = String::new();
         writeln!(dimacs, "p cnf {num_vars} {num_clauses}")
             .map_err(|_| SatCompileError::VariableOverflow)?;
@@ -326,8 +341,7 @@ impl SatCompiler {
             }
             dimacs.push_str("0\n");
         }
-
-        Ok((dimacs, num_vars, num_clauses, builder.var_descriptions))
+        Ok(dimacs)
     }
 
     fn build_linear_sum_tree(

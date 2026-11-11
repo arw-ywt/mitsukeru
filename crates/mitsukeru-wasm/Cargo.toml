@@ -7,7 +7,6 @@ repository.workspace = true
 description = "Deterministic, explainable constraint optimization engine (WebAssembly)"
 
 [lib]
-name = "mitsukeru"
 crate-type = ["cdylib", "rlib"]
 
 [lints]

@@ -1,16 +1,13 @@
 [package]
-name = "mitsukeru-core"
-version = "0.1.0"
-edition = "2024"
-description = "Lightweight, deterministic, and explainable constraint optimization engine written in Pure Rust"
-license = "MIT"
-repository = "https://github.com/arw-ywt/mitsukeru"
+name = "mitsukeru"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "A zero-C-dependency, deterministic, safety-critical constraint optimization engine written in 100% pure Rust."
 keywords = ["knapsack", "optimization", "sat", "solver"]
 categories = ["algorithms", "science"]
 readme = "../../README.md"
-
-[lib]
-name = "mitsukeru"
 
 [features]
 default = ["std"]

@@ -1,0 +1,9 @@
+{
+  "name": "mitsukeru-workspace",
+  "private": true,
+  "description": "Workspace root scripts for mitsukeru",
+  "scripts": {
+    "build:wasm": "wasm-pack build crates/mitsukeru-wasm --target web --out-dir ../../docs/pkg && npm pkg set name=mitsukeru --prefix docs/pkg",
+    "serve": "python -m http.server 5500 -d docs"
+  }
+}

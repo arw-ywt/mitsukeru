@@ -858,7 +858,6 @@ const solution = optimize({
     const jsonResultPreview = document.getElementById("jsonResultPreview");
     const resultStatus = document.getElementById("resultStatus");
 
-    // Dynamic WASM Import State
     /** @type {((payload: Object) => Object) | null} */
     let wasmOptimizeFn = null;
 
@@ -875,7 +874,6 @@ const solution = optimize({
           activeEngineType.textContent = "Engine Mode: WebAssembly";
         }
       } catch (err) {
-        // Graceful fallback for static environment or pre-compilation review
         wasmBadge.textContent = "Wasm Runtime: Fallback Solver Active";
         wasmBadge.className = "text-xs font-mono px-2 py-0.5 border border-neutral-400 dark:border-neutral-600 text-neutral-600 dark:text-neutral-400";
         activeEngineType.textContent = "Engine Mode: Pure JS Reference Solver";
@@ -893,7 +891,6 @@ const solution = optimize({
       const budget = req.capacities[0];
       const rules = req.rules;
 
-      // 1. Analyze and detect logical chain conflicts (ChainConflict schema)
       const requiresMap = new Map();
       const conflictPairs = [];
 
@@ -909,7 +906,6 @@ const solution = optimize({
         }
       }
 
-      // Check logical chain conflicts
       const logicalChainConflicts = [];
       for (const item of items) {
         const rootId = item.id;
@@ -922,7 +918,6 @@ const solution = optimize({
 
           for (const prereq of prerequisites) {
             visited.push(prereq);
-            // Check if prereq conflicts with root or anything in chain
             const isConflicted = conflictPairs.some(
               ([a, b]) => (a === rootId && b === prereq) || (a === prereq && b === rootId)
             );
@@ -940,7 +935,6 @@ const solution = optimize({
         }
       }
 
-      // 2. Analyze capacity overflow conflicts (CapacityConflict schema)
       const capacityConflicts = [];
       for (const item of items) {
         let bundleCost = item.weights[0];
@@ -965,7 +959,6 @@ const solution = optimize({
         }
       }
 
-      // If hard conflicts exist, raise schema-compliant Infeasible error
       if (logicalChainConflicts.length > 0 || capacityConflicts.length > 0) {
         const err = {
           type: "Infeasible",
@@ -979,7 +972,6 @@ const solution = optimize({
         throw err;
       }
 
-      // 3. Search for optimal combination
       const totalMasks = 1 << items.length;
       let bestValue = 0;
       /** @type {number[]} */
@@ -1003,7 +995,6 @@ const solution = optimize({
 
         if (weightSum > budget) continue;
 
-        // Check requires rules
         let passRequires = true;
         for (const rule of rules) {
           if (rule.type === "requires") {
@@ -1013,9 +1004,9 @@ const solution = optimize({
             }
           }
         }
+
         if (!passRequires) continue;
 
-        // Check conflicts rules
         let passConflicts = true;
         for (const rule of rules) {
           if (rule.type === "conflicts") {
@@ -1060,20 +1051,17 @@ const solution = optimize({
       const forceLogical = chkForceLogicalChain.checked;
       const forceCapacity = chkForceCapacityExceeded.checked;
 
-      // 1. Upstream Pre-Filtering
       const eligibleItems = MASTER_ITEMS.filter(it => {
         if (it.requiresCampaign && !campaignActive) return false;
         return true;
       });
 
-      // 2. Build BusinessRules Array
       const rules = [];
       if (reqAB) rules.push({ type: "requires", from_id: 0, to_id: 1 });
       if (confCD) rules.push({ type: "conflicts", a_id: 2, b_id: 3 });
       if (reqEC) rules.push({ type: "requires", from_id: 4, to_id: 2 });
       if (confBE) rules.push({ type: "conflicts", a_id: 1, b_id: 4 });
 
-      // Stress test injections
       if (forceLogical) {
         // E -> C -> A while E conflicts with A
         rules.push({ type: "requires", from_id: 4, to_id: 2 });
@@ -1086,7 +1074,6 @@ const solution = optimize({
         rules.push({ type: "requires", from_id: 0, to_id: 2 });
       }
 
-      // 3. Assemble Schema-Compliant Request
       const requestPayload = {
         capacities: [budget],
         items: eligibleItems.map(it => ({
@@ -1105,7 +1092,6 @@ const solution = optimize({
 
       jsonPayloadPreview.textContent = JSON.stringify(requestPayload, null, 2);
 
-      // 4. Execution via WASM or Fallback
       try {
         let solution;
         if (wasmOptimizeFn) {
@@ -1131,7 +1117,6 @@ const solution = optimize({
       statNodes.textContent = solution.explored_nodes.toString();
       statTime.textContent = solution.execution_time_ms + " ms";
 
-      // Render Selected Items
       selectedBundleList.innerHTML = "";
       let consumedCost = 0;
 
@@ -1165,11 +1150,9 @@ const solution = optimize({
 
       statConsumedCost.textContent = "$" + consumedCost.toLocaleString();
 
-      // Feasibility status
       feasibilityFlag.textContent = "is_feasible: true";
       feasibilityFlag.className = "text-[11px] font-mono font-bold text-neutral-800 dark:text-neutral-200";
 
-      // Rationale list
       diagnosticBody.innerHTML = "";
       const lines = [];
       lines.push(`[CAPACITY_OK] Consumed $${consumedCost} of $${budget} bound (Slack: $${budget - consumedCost}).`);
@@ -1193,7 +1176,6 @@ const solution = optimize({
     }
 
     function renderError(err, budget) {
-      // Render Conflict / Error JSON & Status
       jsonResultPreview.textContent = JSON.stringify(err, null, 2);
       resultStatus.textContent = `Status: ${err.type || "INFEASIBLE"}`;
       resultStatus.className = "text-red-600 dark:text-red-400 font-bold";
@@ -1220,7 +1202,6 @@ const solution = optimize({
       if (err.type === "Infeasible" && err.report) {
         const report = err.report;
 
-        // Logical Chain Conflicts
         if (report.logical_chain_conflicts && report.logical_chain_conflicts.length > 0) {
           for (const conf of report.logical_chain_conflicts) {
             const errDiv = document.createElement("div");
@@ -1234,7 +1215,6 @@ const solution = optimize({
           }
         }
 
-        // Capacity Conflicts
         if (report.capacity_conflicts && report.capacity_conflicts.length > 0) {
           for (const cap of report.capacity_conflicts) {
             const capDiv = document.createElement("div");
@@ -1254,7 +1234,6 @@ const solution = optimize({
       }
     }
 
-    // Attach listeners
     const inputControls = [
       sliderBudget, chkCampaign, chkReqAB, chkConfCD, 
       chkReqEC, chkConfBE, chkForceLogicalChain, chkForceCapacityExceeded
@@ -1265,7 +1244,6 @@ const solution = optimize({
       ctrl.addEventListener("change", executeOptimization);
     }
 
-    // Run Engine Initializer
     initializeEngine();
   </script>
 </body>

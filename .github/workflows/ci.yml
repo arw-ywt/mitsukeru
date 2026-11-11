@@ -37,7 +37,6 @@ jobs:
       - name: Run Clippy (Pedantic checks across workspace)
         run: cargo clippy --workspace --all-targets -- -D warnings -W clippy::pedantic
 
-  # 【新設】組み込み no_std の安全性を保証するガード
   check-embedded:
     name: Embedded (no_std) Verification
     runs-on: ubuntu-latest
@@ -54,11 +53,11 @@ jobs:
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
 
-      - name: Verify no_std compilation (mitsukeru-core)
-        run: cargo check -p mitsukeru-core --target thumbv7em-none-eabi --no-default-features
+      - name: Verify no_std compilation (mitsukeru)
+        run: cargo check -p mitsukeru --target thumbv7em-none-eabi --no-default-features
 
       - name: Run no_std Clippy
-        run: cargo clippy -p mitsukeru-core --target thumbv7em-none-eabi --no-default-features -- -D warnings -W clippy::pedantic
+        run: cargo clippy -p mitsukeru --target thumbv7em-none-eabi --no-default-features -- -D warnings -W clippy::pedantic
 
   test-native:
     name: Native Tests (${{ matrix.os }})

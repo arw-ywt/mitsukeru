@@ -4,17 +4,14 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>mitsukeru</title>
-  <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
       darkMode: "media"
     };
   </script>
-  <!-- Monaco Editor Loader -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
   <style>
-    /* Custom Scrollbars */
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: rgba(150, 150, 150, 0.4); border-radius: 3px; }
@@ -23,7 +20,6 @@
 </head>
 <body class="h-full flex flex-col bg-neutral-100 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 font-sans antialiased overflow-hidden">
 
-  <!-- Header -->
   <header class="flex-none border-b border-neutral-300 dark:border-neutral-800 bg-white dark:bg-neutral-900 px-6 py-3 flex items-center justify-between z-10">
     <div class="flex items-center gap-4">
       <div>
@@ -35,7 +31,6 @@
       </span>
     </div>
 
-    <!-- Global Actions -->
     <div class="flex items-center gap-2">
       <button id="btnFormat" class="px-3 py-1.5 text-xs font-mono border border-neutral-300 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition">
         Format JSON
@@ -49,10 +44,8 @@
     </div>
   </header>
 
-  <!-- Main 2-Column Split Playground -->
   <main class="flex-1 grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-neutral-300 dark:divide-neutral-800 min-h-0">
     
-    <!-- LEFT: Input (Payload Editor) -->
     <section class="flex flex-col h-full min-h-0 bg-white dark:bg-neutral-900">
       <div class="h-10 flex-none flex items-center justify-between px-4 py-2 border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/50">
         <div class="flex items-center gap-2">
@@ -67,7 +60,6 @@
       <div id="inputEditorContainer" class="flex-1 min-h-0 w-full"></div>
     </section>
 
-    <!-- RIGHT: Output (Result Preview) -->
     <section class="flex flex-col h-full min-h-0 bg-white dark:bg-neutral-900">
       <div class="h-10 flex-none flex items-center justify-between px-4 py-2 border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/50">
         <div class="flex items-center gap-2">

@@ -103,7 +103,6 @@
 </head>
 <body class="bg-neutral-50 dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100 font-sans antialiased">
 
-  <!-- Header -->
   <header class="bg-neutral-100 dark:bg-neutral-900 py-8 px-4 sm:px-8">
     <div class="max-w-7xl mx-auto">
       <div class="flex flex-wrap items-center justify-between gap-4 mb-3">
@@ -130,7 +129,6 @@
       </div>
 
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <!-- Legacy Imperative Approach -->
         <div class="border border-neutral-300 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-900 p-5 flex flex-col justify-between">
           <div>
             <div class="flex items-center justify-between pb-3 border-b border-neutral-300 dark:border-neutral-700">
@@ -169,7 +167,6 @@ console.log("Best score:", bestScore);</code></pre>
           </div>
         </div>
 
-        <!-- Mitsukeru Wasm Approach -->
         <div class="border border-neutral-300 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-900 p-5 flex flex-col justify-between">
           <div>
             <div class="flex items-center justify-between pb-3 border-b border-neutral-300 dark:border-neutral-700">
@@ -215,7 +212,6 @@ console.log("Selected item IDs:", solution.selected_item_ids);</code></pre>
       </div>
 
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <!-- Legacy Imperative Approach -->
         <div class="border border-neutral-300 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-900 p-5 flex flex-col justify-between">
           <div>
             <div class="flex items-center justify-between pb-3 border-b border-neutral-300 dark:border-neutral-700">
@@ -276,7 +272,6 @@ console.log("Best score:", bestScore);</code></pre>
           </div>
         </div>
 
-        <!-- Mitsukeru Wasm Approach -->
         <div class="border border-neutral-300 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-900 p-5 flex flex-col justify-between">
           <div>
             <div class="flex items-center justify-between pb-3 border-b border-neutral-300 dark:border-neutral-700">
@@ -369,7 +364,6 @@ console.log("Selected item IDs:", solution.selected_item_ids);</code></pre>
       </div>
     </section>
 
-    <!-- Section 2: Rule Orthogonality & Pre-Filter Pipeline -->
     <section class="space-y-6">
       <div>
         <h2 class="text-xl sm:text-2xl font-bold text-neutral-900 dark:text-neutral-100">
@@ -380,7 +374,6 @@ console.log("Selected item IDs:", solution.selected_item_ids);</code></pre>
         </p>
       </div>
 
-      <!-- Orthogonality Matrix -->
       <div class="border border-neutral-300 dark:border-neutral-700 overflow-x-auto">
         <table class="w-full text-left text-sm">
           <thead class="bg-neutral-200 dark:bg-neutral-800 border-b border-neutral-300 dark:border-neutral-700 font-mono text-xs uppercase text-neutral-700 dark:text-neutral-300">
@@ -594,7 +587,6 @@ console.log("Selected item IDs:", solution.selected_item_ids);</code></pre>
         </p>
       </div>
 
-      <!-- Pipeline Reference -->
       <div class="border border-neutral-300 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-900 p-5 space-y-3">
         <pre class="font-mono text-xs overflow-x-auto text-neutral-800 dark:text-neutral-200 leading-5"><code>// 1. Evaluate context validity using standard business rule engine
 const { events } = await ruleEngine.run({ isCampaignActive: true, customerTier: "VIP" });
@@ -612,7 +604,6 @@ const solution = optimize({
       </div>
     </section>
 
-    <!-- Section 3: Interactive Sandbox with Schema Compliance -->
     <section class="space-y-6">
       <div>
         <h2 class="text-xl sm:text-2xl font-bold text-neutral-900 dark:text-neutral-100">
@@ -622,9 +613,7 @@ const solution = optimize({
 
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 border border-neutral-300 dark:border-neutral-700 p-6 bg-neutral-100 dark:bg-neutral-900">
         
-        <!-- Interactive Controls (Left) -->
         <div class="flex flex-col justify-between lg:col-span-5 space-y-6">
-          <!-- Capacity Limit -->
           <div class="space-y-2">
             <div class="flex justify-between items-center text-xs">
               <label for="budgetSlider" class="font-medium text-neutral-800 dark:text-neutral-200">
@@ -641,7 +630,6 @@ const solution = optimize({
             </div>
           </div>
 
-          <!-- Upstream Filter -->
           <div class="space-y-2 pt-3 border-t border-neutral-200 dark:border-neutral-800">
             <label class="text-xs font-mono font-bold uppercase  text-neutral-700 dark:text-neutral-300 block">
               Upstream Context (Pre-Filter)
@@ -650,22 +638,18 @@ const solution = optimize({
               <span class="text-neutral-800 dark:text-neutral-200">Promotional Campaign Active (Unlocks Item 3: "Product D")</span>
               <span class="relative inline-flex items-center ml-3 shrink-0">
                 <input type="checkbox" id="chkCampaign" checked class="peer sr-only cursor-pointer">
-                <!-- Track -->
                 <span class="w-8 h-4 bg-neutral-300 dark:bg-neutral-700 peer-checked:bg-neutral-900 dark:peer-checked:bg-neutral-100 rounded-full block"></span>
-                <!-- Thumb -->
                 <span class="absolute left-0.5 top-0.5 w-3 h-3 bg-neutral-100 dark:bg-neutral-900 peer-checked:left-[1.125rem] rounded-full pointer-events-none block"></span>
               </span>
             </label>
           </div>
 
-          <!-- Relational Business Rules -->
           <div class="space-y-2 pt-3 border-t border-neutral-200 dark:border-neutral-800">
             <label class="text-xs font-mono font-bold uppercase  text-neutral-700 dark:text-neutral-300 block">
               Relational Business Rules
             </label>
             <div class="space-y-1.5 text-xs">
               
-              <!-- Require AB -->
               <label class="ui-toggle flex items-center justify-between cursor-pointer py-1">
                 <span class="text-neutral-800 dark:text-neutral-200">Require: [Product A] requires [Product B]</span>
                 <span class="relative inline-flex items-center ml-3 shrink-0">
@@ -675,7 +659,6 @@ const solution = optimize({
                 </span>
               </label>
 
-              <!-- Conflict CD -->
               <label class="ui-toggle flex items-center justify-between cursor-pointer py-1">
                 <span class="text-neutral-800 dark:text-neutral-200">Conflict: [Product C] and [Product D] are exclusive</span>
                 <span class="relative inline-flex items-center ml-3 shrink-0">
@@ -685,7 +668,6 @@ const solution = optimize({
                 </span>
               </label>
 
-              <!-- Require EC -->
               <label class="ui-toggle flex items-center justify-between cursor-pointer py-1">
                 <span class="text-neutral-800 dark:text-neutral-200">Require: [Product E] requires [Product C]</span>
                 <span class="relative inline-flex items-center ml-3 shrink-0">
@@ -695,7 +677,6 @@ const solution = optimize({
                 </span>
               </label>
 
-              <!-- Conflict BE -->
               <label class="ui-toggle flex items-center justify-between cursor-pointer py-1">
                 <span class="text-neutral-800 dark:text-neutral-200">Conflict: [Product B] and [Product E] are exclusive</span>
                 <span class="relative inline-flex items-center ml-3 shrink-0">
@@ -708,14 +689,11 @@ const solution = optimize({
             </div>
           </div>
 
-          <!-- Conflict Injection Tests -->
           <div class="space-y-2 pt-3 border-t border-neutral-200 dark:border-neutral-800">
             <label class="text-xs font-mono font-bold uppercase  text-neutral-700 dark:text-neutral-300 block">
               Conflict Injection Tests
             </label>
             <div class="space-y-1.5 text-xs">
-              
-              <!-- Force Logical Chain -->
               <label class="ui-toggle flex items-center justify-between cursor-pointer py-1">
                 <span class="text-neutral-700 dark:text-neutral-300">Force Logical Chain Conflict (E &rarr; C &rarr; A &oplus; E)</span>
                 <span class="relative inline-flex items-center ml-3 shrink-0">
@@ -725,7 +703,6 @@ const solution = optimize({
                 </span>
               </label>
 
-              <!-- Force Capacity Overflow -->
               <label class="ui-toggle flex items-center justify-between cursor-pointer py-1">
                 <span class="text-neutral-700 dark:text-neutral-300">Force Root Capacity Overflow (A &rarr; C when Budget = $400)</span>
                 <span class="relative inline-flex items-center ml-3 shrink-0">
@@ -738,7 +715,6 @@ const solution = optimize({
             </div>
           </div>
 
-          <!-- Catalog Reference Table -->
           <div class="pt-3 border-t border-neutral-200 dark:border-neutral-800 text-xs">
             <span class="font-mono text-neutral-500 uppercase text-[10px] block mb-1">Registered Item Pool (weights: [cost_usd])</span>
             <div class="border border-neutral-300 dark:border-neutral-700 divide-y divide-neutral-200 dark:divide-neutral-800 font-mono text-[11px]">
@@ -755,7 +731,6 @@ const solution = optimize({
           </div>
         </div>
 
-        <!-- Output & Diagnostics Column (Right) -->
         <div class="h-full lg:col-span-7 flex flex-col justify-start space-y-2">
           <div class="space-y-4">
             
@@ -770,7 +745,6 @@ const solution = optimize({
               </div>
             </div>
 
-            <!-- Quantitative Output Metrics -->
             <div class="grid grid-cols-4 gap-2 border border-neutral-300 dark:border-neutral-700 p-3 bg-neutral-50 dark:bg-neutral-950 font-mono text-center">
               <div>
                 <div class="text-[10px] text-neutral-500 uppercase">Best Value</div>
@@ -790,17 +764,13 @@ const solution = optimize({
               </div>
             </div>
 
-            <!-- Selected Set Output -->
             <div class="space-y-2">
               <div class="text-xs font-mono uppercase text-neutral-600 dark:text-neutral-400">
                 Selected Bundle Set (<code class="font-mono">selected_item_ids</code>)
               </div>
-              <div id="selectedBundleList" class="border border-neutral-300 dark:border-neutral-700 divide-y divide-neutral-200 dark:divide-neutral-800 text-xs">
-                <!-- Dynamically Populated -->
-              </div>
+              <div id="selectedBundleList" class="border border-neutral-300 dark:border-neutral-700 divide-y divide-neutral-200 dark:divide-neutral-800 text-xs"></div>
             </div>
 
-            <!-- Structured Conflict Report Display -->
             <div class="border border-neutral-300 dark:border-neutral-700 p-4 bg-neutral-50 dark:bg-neutral-950 space-y-3">
               <div class="flex items-center justify-between border-b border-neutral-200 dark:border-neutral-800 pb-2">
                 <span class="text-xs font-mono font-bold uppercase text-neutral-800 dark:text-neutral-200">
@@ -810,14 +780,10 @@ const solution = optimize({
                   is_feasible: true
                 </span>
               </div>
-              <div id="diagnosticBody" class="space-y-2 text-xs font-mono text-neutral-700 dark:text-neutral-300">
-                <!-- Logs or Conflict Details rendered here -->
-              </div>
+              <div id="diagnosticBody" class="space-y-2 text-xs font-mono text-neutral-700 dark:text-neutral-300"></div>
             </div>
-
           </div>
 
-          <!-- Serialized JSON Payload Monitor -->
           <div class="flex-1 flex flex-col pt-4">
             <div class="flex justify-between items-center mb-1 text-[11px] font-mono text-neutral-500">
               <span>Active Payload Dispatched to Engine:</span>
@@ -838,14 +804,8 @@ const solution = optimize({
 
       </div>
     </section>
-
-    <!-- Section 4: Feasibility Checklist -->
-    <section class="space-y-6">
-    </section>
-
   </main>
 
-  <!-- Technical Footer -->
   <footer class="border-t border-neutral-300 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-900 py-2 px-4 sm:px-8 text-xs text-neutral-600 dark:text-neutral-400">
     <div class="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-4 sm:space-y-0">
       <div>
@@ -855,7 +815,6 @@ const solution = optimize({
     </div>
   </footer>
 
-  <!-- Simulation & WASM Integration Script -->
   <script type="module">
     /**
      * @typedef {Object} Item

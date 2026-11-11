@@ -80,7 +80,7 @@ impl<const W: usize> BitSet<W> {
         while i < W {
             let mut w = self.words[i];
             while w != 0 {
-                let bit_idx = w.trailing_zeros() as usize;
+                let bit_idx = usize::try_from(w.trailing_zeros()).unwrap_or(0);
                 f(i * 64 + bit_idx);
                 w &= w - 1;
             }
@@ -93,7 +93,7 @@ impl<const W: usize> BitSet<W> {
         let mut count = 0;
         let mut i = 0;
         while i < W {
-            count += self.words[i].count_ones() as usize;
+            count += usize::try_from(self.words[i].count_ones()).unwrap_or(0);
             i += 1;
         }
         count

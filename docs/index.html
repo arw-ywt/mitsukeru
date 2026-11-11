@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>mitsukeru — Interactive Playground</title>
+  <title>mitsukeru</title>
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
@@ -28,7 +28,6 @@
     <div class="flex items-center gap-4">
       <div class="flex items-baseline gap-2">
         <span class="font-mono text-base font-bold ">mitsukeru</span>
-        <span class="font-mono text-xs text-neutral-500 uppercase ">/ Playground</span>
       </div>
       <span id="wasmBadge" class="text-xs font-mono px-2 py-0.5 border border-neutral-400 dark:border-neutral-600 text-neutral-500 font-medium">
         Engine: Initializing...
@@ -45,7 +44,6 @@
       </button>
       <button id="btnRun" class="px-4 py-1.5 text-xs font-mono font-bold bg-neutral-900 text-neutral-100 hover:bg-neutral-800 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-white transition flex items-center gap-1.5 shadow-sm">
         <span>Run Solve</span>
-        <span class="text-[10px] opacity-60 font-normal">⌘↵</span>
       </button>
     </div>
   </header>
@@ -55,19 +53,22 @@
     
     <!-- LEFT: Input (Payload Editor) -->
     <section class="flex flex-col h-full min-h-0 bg-white dark:bg-neutral-900">
-      <div class="flex-none flex items-center justify-between px-4 py-2 border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/50">
+      <div class="h-10 flex-none flex items-center justify-between px-4 py-2 border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/50">
         <div class="flex items-center gap-2">
           <span class="text-xs font-mono font-bold uppercase  text-neutral-700 dark:text-neutral-300">Input Payload</span>
           <span class="text-[11px] font-mono text-emerald-600 dark:text-emerald-400">● Schema Verified</span>
         </div>
-        <span class="text-[11px] font-mono text-neutral-400">Ctrl + Space for Auto-complete</span>
+        <div class="flex flex-col">
+          <span class="text-[11px] font-mono text-neutral-400">Ctrl + Space for Auto-complete</span>
+          <span class="text-[11px] font-mono text-neutral-400">Ctrl + Enter for Run solve</span>
+        </div>
       </div>
       <div id="inputEditorContainer" class="flex-1 min-h-0 w-full"></div>
     </section>
 
     <!-- RIGHT: Output (Result Preview) -->
     <section class="flex flex-col h-full min-h-0 bg-white dark:bg-neutral-900">
-      <div class="flex-none flex items-center justify-between px-4 py-2 border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/50">
+      <div class="h-10 flex-none flex items-center justify-between px-4 py-2 border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/50">
         <div class="flex items-center gap-2">
           <span class="text-xs font-mono font-bold uppercase  text-neutral-700 dark:text-neutral-300">Output Result</span>
           <span id="outputStatusTag" class="text-[11px] font-mono font-bold px-2 py-0.5 border border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300">
@@ -220,7 +221,7 @@
     // 3. Engine Loader (Native WebAssembly or Fallback)
     async function loadEngine() {
       try {
-        const wasmModule = await import("./pkg/mitsukeru.js");
+        const wasmModule = await import("./pkg/mitsukeru_wasm.js");
         if (typeof wasmModule.default === "function") {
           await wasmModule.default();
         }

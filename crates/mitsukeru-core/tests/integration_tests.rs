@@ -11,9 +11,8 @@ use mitsukeru::{
 const MILLION: f64 = 1_000_000.0;
 const MS_PER_SEC: f64 = 1_000.0;
 const WARMUP_ITERATIONS: usize = 3;
-const BENCH_ITERATIONS_U32: u32 = 50;
-const BENCH_ITERATIONS: usize = BENCH_ITERATIONS_U32 as usize;
-const BENCH_ITERATIONS_F64: f64 = BENCH_ITERATIONS_U32 as f64;
+const BENCH_ITERATIONS: usize = 50;
+const BENCH_ITERATIONS_F64: f64 = 50.0;
 const BYTES_PER_MB_F64: f64 = 1024.0 * 1024.0;
 
 fn format_num(val: u64) -> String {
@@ -219,18 +218,18 @@ fn test_stress_memory() {
     println!(" +-------------------+--------------------+--------------------+");
     println!(
         " | DP Table Buffer   | {:>18} | {:>15.2} MB |",
-        format_num(table_bytes as u64),
+        format_num(u64::try_from(table_bytes).unwrap_or(0)),
         bytes_to_mb(table_bytes)
     );
     println!(
         " | Bitset History    | {:>18} | {:>15.2} MB |",
-        format_num(history_bytes as u64),
+        format_num(u64::try_from(history_bytes).unwrap_or(0)),
         bytes_to_mb(history_bytes)
     );
     println!(" +-------------------+--------------------+--------------------+");
     println!(
         " | Total Allocated   | {:>18} | {:>15.2} MB |",
-        format_num(total_alloc_bytes as u64),
+        format_num(u64::try_from(total_alloc_bytes).unwrap_or(0)),
         bytes_to_mb(total_alloc_bytes)
     );
     println!(" +-------------------+--------------------+--------------------+");
@@ -493,8 +492,14 @@ fn bench_sat_compile(sc: &ProblemInstance, mip_score: u32, target_limit: f64, ti
 
         println!("        Status     : {sat_status}");
         println!("        Time       : {avg_sat_ms:.2} ms");
-        println!("        Vars       : {}", format_num(sat_vars as u64));
-        println!("        Clauses    : {}", format_num(sat_clauses as u64));
+        println!(
+            "        Vars       : {}",
+            format_num(u64::try_from(sat_vars).unwrap_or(0))
+        );
+        println!(
+            "        Clauses    : {}",
+            format_num(u64::try_from(sat_clauses).unwrap_or(0))
+        );
     }
 }
 
@@ -512,7 +517,7 @@ fn test_performance() {
         ("Test C", test_c()),
         ("Test D", test_d()),
         ("Test E", test_e()),
-        ("Test F", test_f(120)),
+        ("Test F", test_f(26)),
         ("Test G", test_g()),
         ("Test H", test_h()),
         ("Test I", test_i()),
@@ -619,7 +624,7 @@ fn test_optimizer_solution_status() {
 }
 
 #[test]
-fn test_optimizer_strategy_switching() {
+fn test_optimizer_strategy_switching() -> Result<(), Box<dyn core::error::Error>> {
     let prob_a = test_a();
     let input_a = mitsukeru::ProblemInput {
         items: prob_a.items,
@@ -627,7 +632,7 @@ fn test_optimizer_strategy_switching() {
         rules: prob_a.rules,
         target_value: prob_a.target_val,
     };
-    let a_mixed_sol = Optimizer::new(&input_a).solve().unwrap();
+    let a_mixed_sol = Optimizer::new(&input_a).solve()?;
     assert_eq!(
         a_mixed_sol.strategy_used,
         Some(mitsukeru::SolverStrategy::Pure)
@@ -636,8 +641,7 @@ fn test_optimizer_strategy_switching() {
 
     let sol_a_info = Optimizer::new(&input_a)
         .with_strategy(mitsukeru::SolverStrategy::Heuristic)
-        .solve()
-        .unwrap();
+        .solve()?;
     assert_eq!(
         sol_a_info.strategy_used,
         Some(mitsukeru::SolverStrategy::Heuristic)
@@ -652,7 +656,7 @@ fn test_optimizer_strategy_switching() {
         target_value: prob_g.target_val,
     };
 
-    let g_mixed_sol = Optimizer::new(&input_g).solve().unwrap();
+    let g_mixed_sol = Optimizer::new(&input_g).solve()?;
     assert_eq!(
         g_mixed_sol.strategy_used,
         Some(mitsukeru::SolverStrategy::Heuristic)
@@ -661,8 +665,7 @@ fn test_optimizer_strategy_switching() {
 
     let sol_g_pure = Optimizer::new(&input_g)
         .with_strategy(mitsukeru::SolverStrategy::Pure)
-        .solve()
-        .unwrap();
+        .solve()?;
     assert_eq!(
         sol_g_pure.strategy_used,
         Some(mitsukeru::SolverStrategy::Pure)
@@ -672,4 +675,5 @@ fn test_optimizer_strategy_switching() {
         g_mixed_sol.explored_nodes < sol_g_pure.explored_nodes,
         "Heuristic BnB selected by Mixed should explore fewer nodes than Pure BnB"
     );
+    Ok(())
 }

@@ -911,8 +911,8 @@ const solution = optimize({
 
     async function initializeEngine() {
       try {
-        // Attempt dynamic import from relative path ./pkg/mitsukeru.js
-        const wasmPkg = await import("../../pkg/mitsukeru.js");
+        // Attempt dynamic import from relative path ./pkg/mitsukeru_wasm.js
+        const wasmPkg = await import("../../pkg/mitsukeru_wasm.js");
         if (typeof wasmPkg.default === "function") {
           await wasmPkg.default();
         }

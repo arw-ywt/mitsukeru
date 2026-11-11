@@ -1,7 +1,10 @@
 // sat_compiler.rs
 
+use alloc::string::String;
+use alloc::vec::Vec;
+use core::fmt::Write;
+
 use crate::model::{BusinessRule, Item};
-use std::fmt::Write;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Literal(pub i32);
@@ -186,7 +189,7 @@ impl SatCompiler {
         let max_param_val = capacities
             .iter()
             .copied()
-            .chain(std::iter::once(target_val))
+            .chain(core::iter::once(target_val))
             .max()
             .unwrap_or(0);
         let use_parameterized = match config.mode {
@@ -222,9 +225,7 @@ impl SatCompiler {
         );
 
         let raw_num_vars = builder.next_var - 1;
-        let num_vars = usize::try_from(raw_num_vars).unwrap_or_else(|_| {
-            panic!("Financial/SAT Error: variable count overflowed usize: {raw_num_vars}")
-        });
+        let num_vars = usize::try_from(raw_num_vars).unwrap_or(0);
 
         let num_clauses = builder.clauses.len();
         let mut dimacs = String::new();

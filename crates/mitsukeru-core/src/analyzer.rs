@@ -1,10 +1,13 @@
 // src/analyzer.rs
 
+use alloc::collections::VecDeque;
+use alloc::string::String;
+use alloc::vec::Vec;
+
 use crate::bitset::BitSet;
 use crate::model::{
     BusinessRule, CapacityConflict, ChainConflict, ConflictReport, Item, TargetConflict,
 };
-use std::collections::VecDeque;
 
 pub struct InfeasibilityAnalyzer<'a> {
     items: &'a [Item],

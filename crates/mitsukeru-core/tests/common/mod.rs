@@ -1,9 +1,10 @@
 // tests/common/mod.rs
 #![allow(dead_code)]
 #![allow(clippy::too_many_lines)]
+extern crate alloc;
+use alloc::collections::BTreeSet;
 
 use mitsukeru::{BusinessRule, Item};
-use std::collections::BTreeSet;
 
 #[derive(Clone)]
 pub struct ProblemInstance {
@@ -531,9 +532,9 @@ pub fn test_e() -> ProblemInstance {
 pub fn test_f(n: usize) -> ProblemInstance {
     let items: Vec<Item> = (0..n)
         .map(|i| {
-            let base_w1 = 120 + u32::try_from((i * 37) % 70).unwrap();
-            let base_w2 = 100 + u32::try_from((i * 41) % 60).unwrap();
-            let val = 60 + u32::try_from((i * 29) % 35).unwrap();
+            let base_w1 = 120 + u32::try_from((i * 37) % 70).unwrap_or(0);
+            let base_w2 = 100 + u32::try_from((i * 41) % 60).unwrap_or(0);
+            let val = 60 + u32::try_from((i * 29) % 35).unwrap_or(0);
             Item {
                 id: i,
                 name: format!("F_{i:03}"),
@@ -543,7 +544,7 @@ pub fn test_f(n: usize) -> ProblemInstance {
         })
         .collect();
 
-    let n_u32 = u32::try_from(n).unwrap();
+    let n_u32 = u32::try_from(n).unwrap_or(0);
     let cap_w1 = n_u32 * 70;
     let cap_w2 = n_u32 * 58;
     let target_val = n_u32 * 33;
@@ -603,9 +604,9 @@ pub fn test_g() -> ProblemInstance {
     }
 
     for i in 12..28 {
-        let w1 = 70 + u32::try_from((i * 19) % 40).unwrap();
-        let w2 = 60 + u32::try_from((i * 23) % 40).unwrap();
-        let val = 60 + u32::try_from((i * 13) % 35).unwrap();
+        let w1 = 70 + u32::try_from((i * 19) % 40).unwrap_or(0);
+        let w2 = 60 + u32::try_from((i * 23) % 40).unwrap_or(0);
+        let val = 60 + u32::try_from((i * 13) % 35).unwrap_or(0);
         items.push(Item {
             id: i,
             name: format!("GEN_{i:02}"),
@@ -679,9 +680,9 @@ pub fn test_h() -> ProblemInstance {
     }
 
     for i in 20..40 {
-        let w1 = 70 + u32::try_from((i * 17) % 50).unwrap();
-        let w2 = 60 + u32::try_from((i * 23) % 40).unwrap();
-        let val = 50 + u32::try_from((i * 13) % 40).unwrap();
+        let w1 = 70 + u32::try_from((i * 17) % 50).unwrap_or(0);
+        let w2 = 60 + u32::try_from((i * 23) % 40).unwrap_or(0);
+        let val = 50 + u32::try_from((i * 13) % 40).unwrap_or(0);
         items.push(Item {
             id: i,
             name: format!("GEN_{i:02}"),
@@ -756,9 +757,9 @@ pub fn test_i() -> ProblemInstance {
     }
 
     for i in 28..n {
-        let w1 = 50 + u32::try_from((i * 17) % 40).unwrap();
-        let w2 = 40 + u32::try_from((i * 23) % 35).unwrap();
-        let val = 40 + u32::try_from((i * 13) % 30).unwrap();
+        let w1 = 50 + u32::try_from((i * 17) % 40).unwrap_or(0);
+        let w2 = 40 + u32::try_from((i * 23) % 35).unwrap_or(0);
+        let val = 40 + u32::try_from((i * 13) % 30).unwrap_or(0);
         items.push(Item {
             id: i,
             name: format!("GEN_{i:02}"),
@@ -802,9 +803,9 @@ pub fn test_j() -> ProblemInstance {
     let mut items = Vec::new();
     let n = 40;
     for i in 0..n {
-        let w1 = 50 + u32::try_from((i * 31) % 100).unwrap();
-        let w2 = 50 + u32::try_from((i * 37) % 100).unwrap();
-        let val = 40 + u32::try_from((i * 19) % 80).unwrap();
+        let w1 = 50 + u32::try_from((i * 31) % 100).unwrap_or(0);
+        let w2 = 50 + u32::try_from((i * 37) % 100).unwrap_or(0);
+        let val = 40 + u32::try_from((i * 19) % 80).unwrap_or(0);
         items.push(Item {
             id: i,
             name: format!("PURE_{i:02}"),
@@ -876,9 +877,9 @@ pub fn test_l() -> ProblemInstance {
         });
     }
     for i in 20..n {
-        let w1 = 40 + u32::try_from((i * 13) % 60).unwrap();
-        let w2 = 40 + u32::try_from((i * 17) % 60).unwrap();
-        let val = 30 + u32::try_from((i * 11) % 50).unwrap();
+        let w1 = 40 + u32::try_from((i * 13) % 60).unwrap_or(0);
+        let w2 = 40 + u32::try_from((i * 17) % 60).unwrap_or(0);
+        let val = 30 + u32::try_from((i * 11) % 50).unwrap_or(0);
         items.push(Item {
             id: i,
             name: format!("CHAOS_{i:02}"),
@@ -929,9 +930,9 @@ pub fn test_m() -> ProblemInstance {
             opt_idx += 1;
             res
         } else {
-            let w1 = 45 + u32::try_from((i * 7) % 20).unwrap();
-            let w2 = 45 + u32::try_from((i * 11) % 20).unwrap();
-            let val = 25 + u32::try_from((i * 3) % 15).unwrap();
+            let w1 = 45 + u32::try_from((i * 7) % 20).unwrap_or(0);
+            let w2 = 45 + u32::try_from((i * 11) % 20).unwrap_or(0);
+            let val = 25 + u32::try_from((i * 3) % 15).unwrap_or(0);
             (w1, w2, val)
         };
 

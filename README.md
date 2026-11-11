@@ -6,40 +6,51 @@ mitsukeru
 <img src="https://raw.githubusercontent.com/arw-ywt/mitsukeru/main/assets/logo.svg" alt="mitsukeru logo" width="500" />
 </div>
 
-[![CI](https://img.shields.io/github/actions/workflow/status/arw-ywt/mitsukeru/ci.yml?branch=main&label=CI&logo=github&style=flat-square)](https://github.com/arw-ywt/mitsukeru/actions)
-![WebAssembly](https://img.shields.io/badge/WebAssembly-supported-654FF0?logo=webassembly&logoColor=white&style=flat-square)
-![MSRV](https://img.shields.io/badge/MSRV-1.75+-orange?logo=rust&style=flat-square)
-<br/>
-[![Crates.io Version](https://img.shields.io/crates/v/mitsukeru?logo=rust&style=flat-square)](https://crates.io/crates/mitsukeru)
-[![Docs.rs](https://img.shields.io/docsrs/mitsukeru?logo=docs.rs&style=flat-square)](https://docs.rs/mitsukeru)
-[![npm version](https://img.shields.io/npm/v/mitsukeru?logo=npm&style=flat-square)](https://www.npmjs.com/package/mitsukeru)
-<br/>
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
+<p align="center">
+  <a href="https://github.com/arw-ywt/mitsukeru/actions"><img src="https://img.shields.io/github/actions/workflow/status/arw-ywt/mitsukeru/ci.yml?branch=main&label=CI&logo=github&style=flat-square" alt="CI" /></a>
+  <img src="https://img.shields.io/badge/no__std-supported-blue?style=flat-square" alt="no_std supported" />
+  <img src="https://img.shields.io/badge/WebAssembly-supported-654FF0?logo=webassembly&logoColor=white&style=flat-square" alt="WebAssembly" />
+  <img src="https://img.shields.io/badge/MSRV-1.75+-orange?logo=rust&style=flat-square" alt="MSRV" />
+  <br/>
+  <a href="https://crates.io/crates/mitsukeru"><img src="https://img.shields.io/crates/v/mitsukeru?logo=rust&style=flat-square" alt="Crates.io Version" /></a>
+  <a href="https://docs.rs/mitsukeru"><img src="https://img.shields.io/docsrs/mitsukeru?logo=docs.rs&style=flat-square" alt="Docs.rs" /></a>
+  <a href="https://www.npmjs.com/package/mitsukeru"><img src="https://img.shields.io/npm/v/mitsukeru?logo=npm&style=flat-square" alt="npm version" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square" alt="License: MIT" /></a>
+</p>
 
-
-**A zero-C-dependency, reproducible constraint optimization engine written in 100% pure Rust.**
+A zero-C-dependency, deterministic, safety-critical constraint optimization engine written in 100% pure Rust.
 <br/>
-Pass items and rules as data instead of writing complex `if/else` branching. Finds optimal combinations in microseconds and automatically explains why constraints cannot be satisfied.
-
+Pass items and business rules as declarative data instead of writing entangled `if/else` logic. Finds mathematically optimal combinations in microseconds and automatically explains why constraints cannot be satisfied. Runs anywhere from bare-metal microcontrollers (`no_std`) and high-throughput backend services to browsers via WebAssembly.
 
 - [Installation](#installation)
 - [Quick Start](#quick-start)
-  - [1. Define the Problem & Run](#1-define-the-problem--run)
-  - [2. Output](#2-output)
-  - [3. Go to playgraound](#3-go-to-playground)
-- [Features](#features)
-- [When to use](#when-to-use)
-- [When NOT to use](#when-not-to-use)
-- [Options](#options)
-  - [Presets](#presets)
-  - [Builder Methods](#builder-methods)
-- [Related Projects](#related-projects)
-  - [Spaghetti vs. Mitsukeru](#spaghetti-vs-mitsukeru)
-  - [The Needle in the Web](#the-needle-in-the-web)
-  - [Societal Scale Optimization](#societal-scale-optimization)
+  - [Rust (Native / Embedded)](#1-rust-native--embedded)
+  - [TypeScript / JavaScript (Browser / Node.js)](#2-typescript--javascript-browser--nodejs)
+  - [Infeasibility Diagnostic Output](#3-infeasibility-diagnostic-output)
+  - [Interactive Playground](#4-interactive-playground)
+- [Key Features](#key-features)
+- [Safety-Critical & Architecture](#safety-critical--architecture)
+- [When to Use](#when-to-use)
+- [When NOT to Use](#when-not-to-use)
+- [Options & Presets](#options--presets)
+- [Benchmarks](#benchmarks)
 - [License](#license)
 
 ## Installation
+
+### Rust (Cargo)
+Add `mitsukeru` to your `Cargo.toml`:
+
+```toml
+[dependencies]
+mitsukeru = "0.1"
+
+# For bare-metal / embedded microcontrollers (no_std + alloc):
+# mitsukeru = { version = "0.1", default-features = false }
+```
+
+### TypeScript / JavaScript (npm)
+For browser, Node.js, and edge runtimes:
 
 ```bash
 npm i mitsukeru
@@ -47,9 +58,48 @@ npm i mitsukeru
 
 ## Quick Start
 
-Here is a quick example of how to optimize item selection under capacity limits and business rules (e.g., *Item A requires Item B*, and *Item X conflicts with Item Y*).
+### 1. Rust (Native / Embedded)
 
-### 1. Define the Problem & Run
+```rust
+use mitsukeru::{BusinessRule, Item, Optimizer, ProblemInput};
+
+fn main() -> Result<(), Box<dyn core::error::Error>> {
+    let input = ProblemInput {
+        items: vec![
+            Item { id: 0, name: "Pro Camera".into(), weights: vec![10, 5], value: 500 },
+            Item { id: 1, name: "Carbon Tripod".into(), weights: vec![3, 2], value: 120 },
+            Item { id: 2, name: "LED Light A".into(), weights: vec![5, 3], value: 200 },
+            Item { id: 3, name: "LED Light B".into(), weights: vec![5, 3], value: 210 },
+        ],
+        capacities: vec![20, 10], // [Max Budget, Max Weight]
+        rules: vec![
+            BusinessRule::Requires { from_id: 0, to_id: 1 }, // Camera requires Tripod
+            BusinessRule::Conflicts { a_id: 2, b_id: 3 },    // Light A and B cannot be mixed
+        ],
+        target_value: None,
+    };
+
+    // Solve with Top-2 candidates
+    let solution = Optimizer::new(&input)
+        .preset_fast()
+        .with_top_k(2)
+        .solve()?;
+
+    println!("Best Value    : {} pt", solution.best_value);
+    println!("Selected Items: {:?}", solution.selected_item_ids); // [0, 1, 3]
+
+    if let Some(candidates) = solution.top_candidates {
+        for (rank, cand) in candidates.iter().enumerate() {
+            println!("Rank {}: {} pt -> {:?}", rank + 1, cand.value, cand.selected_item_ids);
+        }
+    }
+
+    Ok(())
+}
+```
+
+### 2. TypeScript / JavaScript (Browser / Node.js)
+
 ```typescript
 import { optimize } from "mitsukeru";
 
@@ -73,36 +123,18 @@ try {
     }
   });
 
-  console.log("Success:", result);
-
-} catch (err) {
-  // Strongly typed Discriminated Union for errors
+  console.log("Optimal Score:", result.best_value);       // 830
+  console.log("Selected IDs :", result.selected_item_ids); // [0, 1, 3]
+} catch (err: any) {
   if (err.type === "Infeasible") {
     console.error("Conflict Report:", err.report);
   }
 }
 ```
 
-### 2. Output
+### 3. Infeasibility Diagnostic Output
 
-```json
-{
-  "best_value": 830,
-  "selected_item_ids": [0, 1, 3],
-  "execution_time_ms": 0.02,
-  "explored_nodes": 12,
-  "status": "optimal",
-  "strategy_used": "mixed",
-  "top_candidates": [
-    { "value": 830, "selected_item_ids": [0, 1, 3] },
-    { "value": 820, "selected_item_ids": [0, 1, 2] }
-  ],
-  "upper_bound": 830.0,
-  "optimality_gap": 0.0
-}
-```
-
-If the rules are logically impossible to satisfy, `mitsukeru` instantly generates an actionable human-readable report instead of failing silently:
+If the business constraints are logically contradictory, `mitsukeru` never fails silently. It pinpoint-traces the exact cause and returns an actionable report:
 
 ```json
 {
@@ -123,160 +155,116 @@ If the rules are logically impossible to satisfy, `mitsukeru` instantly generate
 }
 ```
 
-# 3. Go to playgraound
+### 4. Interactive Playground
 
-Want to input and output JSON yourself? [Here](https://arw-ywt.github.io/mitsukeru/docs), you can try out our interactive playground on your own device.
+Want to try JSON inputs and visualize constraint graphs in real time?  
+Visit our [Interactive WebAssembly Playground](https://arw-ywt.github.io/mitsukeru/docs).
 
-## Features
+## Key Features
 
-- **Sub-Millisecond Performance**
+- Sub-Millisecond Bit-Parallel Engine  
+  Powered by a SIMD/bit-parallel branch-and-bound core (`BitSet<const W>`), evaluating millions of states per second with zero heap allocations in inner hot loops.
 
-  Powered by a bit-parallel branch-and-bound core (`BitSet<const W>`), the solver evaluates millions of nodes per second with zero heap allocations in hot loops, delivering optimal or near-optimal solutions in milliseconds.
+- Embedded & `no_std` First-Class Support  
+  The core calculation engine is completely decoupled from OS primitives (`#![no_std] + alloc`). Deployable to bare-metal microcontrollers (ARM Cortex-M, RISC-V, ESP32) with zero C dependencies.
 
-- **Mixed Auto (Auto-Tuning Hybrid Engine)**
+- Dependency Injected Clock (Safety-Critical)  
+  Adheres to the *"Never Lie, No Silent Fallback"* principle. OS/browser clocks are automatically used in standard environments, while custom hardware timers (e.g., SysTick) can be injected via the `Clock` trait in embedded or deterministic unit testing environments.
 
-  Automatically analyzes problem scale and constraint density at runtime. For sparse or small problems, it instantly dispatches a pure exact solver; for dense constraint networks, it leverages constraint graph analysis and structural heuristics to prune search spaces by up to 100x.
+- Mixed Auto (Auto-Tuning Hybrid Engine)  
+  Analyzes constraint graph density and item size at runtime. Dispatches pure branch-and-bound for sparse problems and automatically enables structural graph heuristics to prune dense combinatorial search spaces by up to 100x.
 
-- **Explainable Infeasibility Analysis**
+- Top-K Alternative Options  
+  Retrieves the top-$K$ best distinct configurations (Plan A, Plan B, Plan C) ordered by objective score, enabling flexible human-in-the-loop decision-making.
 
-  When a problem cannot be satisfied due to contradictory rules, it automatically runs a diagnostic report explaining *why* (e.g., tracing exact logical chain conflicts, bundle capacity overflows, or unachievable targets).
+- WebAssembly Ready  
+  Compiles cleanly to `wasm32-unknown-unknown` for high-speed client-side execution in browsers, Cloudflare Workers, and serverless edge functions.
 
-- **Top-K Alternative Solutions**
+## Safety-Critical & Architecture
 
-  Go beyond the single optimal answer. Instantly retrieve top-ranked alternative solutions (Plan A, Plan B, Plan C) sorted in descending order of value, enabling flexible decision-making.
+The repository is architected as an isolated Cargo Workspace:
 
-- **100% Pure Rust & WebAssembly Ready**
+```text
+mitsukeru/
+├── crates/
+│   ├── mitsukeru-core/     # Pure Rust, no_std, zero-unsafe, safety-critical core
+│   └── mitsukeru-wasm/     # Thin wasm-bindgen and JS serialization wrapper
+├── docs/                   # WebAssembly demo playground
+└── benches/                # Criterion micro-benchmarks
+```
 
-  Zero C/C++ native dependencies. It compiles cleanly to `wasm32-unknown-unknown`, allowing you to run high-performance constraint optimization directly in browsers, Node.js, or serverless Edge environments.
+### Hardware Clock Injection (`no_std` / Testing)
+In `no_std` environments without an OS clock, specify a hardware timer or step counter by implementing the `Clock` trait:
+
+```rust
+use mitsukeru::{Clock, Optimizer};
+
+struct MyHardwareSysTick;
+impl Clock for MyHardwareSysTick {
+    fn now_micros(&self) -> u64 {
+        // Read raw microcontroller hardware timer register
+        unsafe { read_systick_register() }
+    }
+}
+
+let clock = MyHardwareSysTick;
+let solution = Optimizer::new(&input)
+    .with_clock(&clock)
+    .with_time_limit_ms(5.0)
+    .solve()?;
+```
+*(If a time limit is specified in a `no_std` environment without an injected clock, `mitsukeru` fails fast and returns `Err(OptimizeError::InvalidInput)` instead of silently hanging).*
 
 ## When to Use
 
-### Rule Management and Architecture
-- Writing complex conditional selection logic without nested `if/else` or `switch/case` statements
-- Maintaining and updating business constraints regularly through data schemas rather than code deployments
-- Decoupling selection criteria, eligibility requirements, and limits from application code
+### Architecture & Rule Management
+- Replacing complex, nested `if/else` or `switch/case` trees with data-driven declarative rules.
+- Decoupling configuration logic, eligibility checks, and bundle constraints from application binaries.
+- Needing root-cause conflict explanations when configurations fail.
 
-### Solution Requirements
-- Finding multiple diverse and high-quality alternatives
-- Considering transitive and chained logical constraints where item selections trigger subsequent requirements or mutual exclusions
-- Analyzing the root cause of infeasible inputs and identifying the exact chain of conflicting constraints
-
-### Deployment and Performance
-- Executing directly on the client side in a browser or inside serverless and edge environments
-- Deploying as a self-contained, zero-dependency library without external runtimes or external solver processes
-- Obtaining mathematically guaranteed optimal decisions within sub-millisecond execution budgets
+### Operational Requirements
+- High-frequency trading, avionics, robotics, or embedded systems where deterministic execution and zero OS latency are strictly required.
+- Edge / Serverless deployments where external solver binaries (e.g., Gurobi, CPLEX, SCIP) cannot be linked.
+- Interactive web apps requiring instantaneous constraint validation without server round-trips.
 
 ## When NOT to Use
 
-- When you encounter a problem where the number of items exceeds 2048 (NOT SUPPORTED, even in the mode with no time limit and no limit on search nodes)
-- When you optimize continuous or divisible variables—such as in percentage allocations or linear programming models
-- When you handle problems with high-dimensional capacity limits (e.g., ten or more simultaneous resource dimensions) where surrogate relaxation bounds become loose
-- When you run offline batch processes where execution latency, memory footprint, and external runtime dependencies are not operational constraints
+- Problems with more than 2048 candidate items (enforced architectural ceiling for bitset efficiency).
+- Continuous (divisible) linear programming models (e.g., fractional portfolio allocation).
+- High-dimensional constraint spaces (e.g., 10+ simultaneous capacity dimensions) where surrogate relaxation bounds become loose.
 
-If you are looking for a solver for the above purpose, use general-purpose MIP/LP solvers such as Gurobi, SCIP, or Google OR-Tools.
-
-## Options
-
-You can configure solver execution using presets or fluent builder methods on the Optimizer instance.
+## Options & Presets
 
 ### Presets
-- `Optimizer::new(&input).preset_fast()` (Default)
-  Configured for low-latency and synchronous execution. Applies a 2.0 ms wall-clock limit and a 100,000 explored node cap.
-- `Optimizer::new(&input).preset_accurate()`
-  Configured for higher exploration depth. Applies a 100.0 ms wall-clock limit and a 1,000,000 explored node cap.
-- `Optimizer::new(&input).preset_exact()`
-  Removes time limits and node constraints to compute and prove the exact mathematical optimum.
+- `Optimizer::new(&input).preset_fast()` *(Default)*  
+  Optimized for synchronous / UI execution. Wall-clock budget of 2.0 ms, max 100,000 nodes.
+- `Optimizer::new(&input).preset_accurate()`  
+  High-accuracy mode. Wall-clock budget of 100.0 ms, max 1,000,000 nodes.
+- `Optimizer::new(&input).preset_exact()`  
+  Unbounded exploration proving mathematically global optimality.
 
-### Builder Methods
-- `.with_strategy(SolverStrategy::Pure | Heuristic | Mixed)`
-  Explicitly sets the search mode. `Pure` executes standard branch-and-bound search, `Heuristic` initializes search state using graph-based predictive embeddings, and `Mixed` automatically selects between them based on rule density and item count.
-- `.with_time_limit_ms(limit_ms: f64)`
-  Sets a custom wall-clock execution limit in milliseconds. When exceeded, the solver returns the best feasible solution found along with an optimality gap.
-- `.with_max_nodes(max_nodes: u64)`
-  Sets an upper bound on explored search tree nodes.
-- `.with_top_k(k: usize)`
-  Configures the engine to record and return up to k distinct, high-scoring candidate solutions ordered by objective value.
-
-## Related Projects
-
-Below, we present practical examples of how this engine is used.
-
-### [Spaghetti vs. Mitsukeru](https://arw-ywt.github.io/mitsukeru/examples/spaghetti/)
-
-Easily replace `if/else` or `switch/case` statements, `json-rules-engine`, or tools like HiGHS and Google OR-Tools using `mitsukeru`.
-
-
-### [The Needle in the Web](https://arw-ywt.github.io/mitsukeru/examples/needle/)
-Build a personalized set of offers or product features that fits a visitor’s budget and technical constraints. `mitsukeru` selects a high-value combination, respects dependencies and incompatibilities, and can return alternative plans for the user to compare. Run the optimization in the browser with WebAssembly; your application supplies the candidate scores and business rules.
-
-
-### [Societal Scale Optimization](https://arw-ywt.github.io/mitsukeru/examples/societal/)
-
-Help planners compare portfolios of community support actions when budgets, staff, and supplies are limited. Encode operational prerequisites and incompatible assignments as explicit rules, then rank feasible plans by a transparent impact score. `mitsukeru` can support repeatable planning at a defined regional or operational scope; people remain responsible for setting priorities and reviewing the outcomes.
-
+### Fluent Methods
+- `.with_strategy(SolverStrategy::Pure | Heuristic | Mixed)` — Force exact BnB, graph heuristics, or auto-selection.
+- `.with_time_limit_ms(limit: f64)` — Set maximum execution budget in milliseconds.
+- `.with_max_nodes(nodes: u64)` — Bound explored search tree nodes (ideal for real-time systems).
+- `.with_top_k(k: usize)` — Retain top $K$ alternative feasible solutions.
+- `.with_clock(&'a dyn Clock)` — Inject a custom monotonic time source.
 
 ## Benchmarks
 
-### Environment
-- Hardware: Intel Core i7 / AMD Ryzen (x86_64), 16 Cores, 32 GB RAM
-- OS: Windows 11 / Ubuntu 22.04 LTS
-- Rust Version: 1.75+ (Target: `x86_64-pc-windows-msvc`, Release profile, LTO enabled)
-- Harness: Criterion v0.5 with black_box barriers against dead-code elimination
+Micro-benchmarked with Criterion v0.5 across varying problem profiles:
 
-### Stress Sweep
-Based on the number of items ($N$), each item's two weights (<code>weights</code>) and value (<code>value</code>) are determined deterministically using prime numbers (37, 41, 29) and modulo operations, along with increased capacity, target score, and constraints. Chain depth is kept shallow (at most 2–3 levels). The search constraints are a 2.0 ms timeout and a limit of 100,000 total search nodes.
-
-| Items ($N$) | Strategy  | Status     | Best Value | Gap (%)   | Explored Nodes | Time (ms)  | Throughput (Mnodes/s) |
-| :---:  | :---:     | :---:      | :---:      | :---:     | :---:        | :---:      | :---:    |
-| 16     | Pure      | Optimal    | 611 pt     | 0.00%     | 541          | 0.07       | 8.2      |
-| 16     | Heuristic | Optimal    | 611 pt     | 0.00%     | 541          | 0.06       | 9.6      |
-| 16     | Mixed     | Optimal    | 611 pt     | 0.00%     | 541          | 0.02       | 32.8     |
-| 32     | Pure      | Optimal    | 1266 pt    | 0.00%     | 236          | 0.04       | 6.6      |
-| 32     | Heuristic | Optimal    | 1266 pt    | 0.00%     | 236          | 0.03       | 6.9      |
-| 32     | Mixed     | Optimal    | 1266 pt    | 0.00%     | 236          | 0.02       | 9.6      |
-| 64     | Pure      | Optimal    | 2553 pt    | 0.00%     | 579          | 0.08       | 7.6      |
-| 64     | Heuristic | Optimal    | 2553 pt    | 0.00%     | 579          | 0.07       | 7.7      |
-| 64     | Mixed     | Optimal    | 2553 pt    | 0.00%     | 579          | 0.12       | 4.8      |
-| 128    | Pure      | Optimal    | 5082 pt    | 0.00%     | 21,085       | 2.03       | 10.4     |
-| 128    | Heuristic | Optimal    | 5082 pt    | 0.00%     | 21,085       | 2.06       | 10.2     |
-| 128    | Mixed     | Approx     | 5082 pt    | 1.34%     | 20,480       | 2.26       | 9.0      |
-| 256    | Pure      | Approx     | 10052 pt   | 1.90%     | 12,288       | 2.17       | 5.7      |
-| 256    | Heuristic | Approx     | 10054 pt   | 1.88%     | 16,384       | 2.89       | 5.7      |
-| 256    | Mixed     | Approx     | 10054 pt   | 1.88%     | 16,384       | 2.83       | 5.8      |
-| 512    | Pure      | Approx     | 20054 pt   | 2.29%     | 8,192        | 2.64       | 3.1      |
-| 512    | Heuristic | Approx     | 20054 pt   | 2.29%     | 8,192        | 2.79       | 2.9      |
-| 512    | Mixed     | Approx     | 20054 pt   | 2.29%     | 8,192        | 3.00       | 2.7      |
-| 1024   | Pure      | Approx     | 40148 pt   | 2.09%     | 4,096        | 3.81       | 1.1      |
-| 1024   | Heuristic | Approx     | 40148 pt   | 2.09%     | 4,096        | 4.07       | 1.0      |
-| 1024   | Mixed     | Approx     | 40148 pt   | 2.09%     | 4,096        | 4.01       | 1.0      |
-| 2048   | Pure      | Approx     | 80067 pt   | 2.27%     | 4,096        | 10.75      | 0.4      |
-| 2048   | Heuristic | Approx     | 80067 pt   | 2.27%     | 4,096        | 14.37      | 0.3      |
-| 2048   | Mixed     | Approx     | 80067 pt   | 2.27%     | 4,096        | 14.08      | 0.3      |
-
-You can reproduce these benchmarks locally using the following command:
-
-```bash
-cargo test --test test_f_scaling --release -- --nocapture
-```
-
-### Strategies
-Here are the benchmark results measured for each test using Criterion.rs:
-- **`Pure`**: Pure deterministic bit-parallel branch-and-bound search.
-- **`Heuristic`**: Search guided by initial graph-embedding predictions.
-- **`Mixed`** (Default): Adaptive engine that selects strategy based on constraint graph density and item volume.
-
-| Test Case | Candidate Items | Constraint Profile | Pure BnB | Heuristic BnB | Mixed (Adaptive) | Status |
+| Test Case | Candidates ($N$) | Constraint Structure | Pure BnB | Heuristic BnB | Mixed (Adaptive) | Optimality |
 | :--- | :---: | :--- | :---: | :---: | :---: | :---: |
-| Test A | 14 | Standard paired dependencies | 2.38 µs | 5.68 µs | 2.59 µs (via Pure) | Proven Optimal |
-| Test B | 10 | Sequential requires chain | 2.30 µs | 4.65 µs | 2.31 µs (via Pure) | Proven Infeasible |
-| Test C | 7 | Low density, multi-body rules | 1.14 µs | 2.86 µs | 1.15 µs (via Pure) | Proven Optimal |
-| Test D | 12 | Asymmetric high-capacity bounds | 3.17 µs | 5.66 µs | 3.18 µs (via Pure) | Proven Optimal |
-| Test E | 18 | Multi-stage alternating rules | 12.68 µs | 16.44 µs | 12.70 µs (via Pure) | Proven Optimal |
-| Test F | 26 | Balanced periodic constraints | 21.17 µs | 26.38 µs | 26.40 µs (via Heuristic)| Proven Optimal |
-| Test G | 28 | Dense synergy clusters & honey-traps | 12.45 µs | 8.78 µs | 8.87 µs (via Heuristic)| Proven Optimal |
+| Test A | 14 | Paired prerequisites | 1.82 µs | 3.66 µs | 2.24 µs *(Pure)* | Proven Optimal |
+| Test B | 10 | Sequential dependency chain | 1.18 µs | 3.38 µs | 2.29 µs *(Pure)* | Proven Infeasible |
+| Test C | 7 | Multi-body exclusion rules | 0.68 µs | 1.89 µs | 1.05 µs *(Pure)* | Proven Optimal |
+| Test D | 12 | Asymmetric capacity bounds | 2.53 µs | 4.14 µs | 2.93 µs *(Pure)* | Proven Optimal |
+| Test E | 18 | Multi-stage alternating rules| 11.48 µs | 13.75 µs | 12.06 µs *(Pure)* | Proven Optimal |
+| Test F | 26 | Periodic cyclic constraints | 19.23 µs | 21.54 µs | 21.54 µs *(Heuristic)*| Proven Optimal |
+| Test G | 28 | Dense honey-trap clusters | 10.60 µs | 5.08 µs | 5.36 µs *(Heuristic)*| Proven Optimal |
 
-You can reproduce these benchmarks locally using the following command:
-
+To run benchmarks locally:
 ```bash
 cargo bench --bench solver_bench
 ```

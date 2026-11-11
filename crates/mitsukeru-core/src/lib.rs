@@ -1,8 +1,16 @@
 // src/lib.rs
+#![cfg_attr(not(feature = "std"), no_std)]
+
+#[macro_use]
+extern crate alloc;
+
+use alloc::format;
+use alloc::string::{String, ToString};
 
 pub mod analyzer;
 pub mod bitset;
 pub mod branch_and_bound;
+pub mod clock;
 pub mod dp_branchless;
 pub mod heuristics;
 pub mod model;
@@ -11,6 +19,9 @@ pub mod sat_compiler;
 pub use analyzer::InfeasibilityAnalyzer;
 pub use bitset::BitSet;
 pub use branch_and_bound::BranchAndBoundSolver;
+pub use clock::Clock;
+#[cfg(feature = "std")]
+pub use clock::SystemClock;
 pub use dp_branchless::Flat2dDpSolver;
 pub use heuristics::{GraphHeuristics, VariableDecision};
 pub use model::*;
@@ -18,28 +29,10 @@ pub use sat_compiler::{CompilerConfig, SatCompiler};
 
 pub const MAX_SUPPORTED_ITEMS: usize = 2048;
 
-use wasm_bindgen::prelude::*;
-use web_time::Instant;
-
-struct Timer {
-    start: Instant,
-}
-
-impl Timer {
-    fn start() -> Self {
-        Self {
-            start: Instant::now(),
-        }
-    }
-
-    fn elapsed_ms(&self) -> f64 {
-        self.start.elapsed().as_secs_f64() * 1000.0
-    }
-}
-
 pub struct Optimizer<'a> {
     input: &'a ProblemInput,
     config: OptimizerConfig,
+    clock: Option<&'a dyn Clock>,
 }
 
 impl<'a> Optimizer<'a> {
@@ -48,12 +41,29 @@ impl<'a> Optimizer<'a> {
         Self {
             input,
             config: OptimizerConfig::default(),
+            #[cfg(feature = "std")]
+            clock: Some(&clock::DEFAULT_CLOCK),
+            #[cfg(not(feature = "std"))]
+            clock: None,
         }
     }
 
     #[must_use]
     pub fn new_with_config(input: &'a ProblemInput, config: OptimizerConfig) -> Self {
-        Self { input, config }
+        Self {
+            input,
+            config,
+            #[cfg(feature = "std")]
+            clock: Some(&clock::DEFAULT_CLOCK),
+            #[cfg(not(feature = "std"))]
+            clock: None,
+        }
+    }
+
+    #[must_use]
+    pub fn with_clock(mut self, clock: &'a dyn Clock) -> Self {
+        self.clock = Some(clock);
+        self
     }
 
     #[must_use]
@@ -106,7 +116,15 @@ impl<'a> Optimizer<'a> {
     /// - If the number of items exceeds the upper limit (`MAX_SUPPORTED_ITEMS`) ([`OptimizeError::InvalidInput`]).
     /// - If the problem is determined to be infeasible—due to circular or contradictory dependencies, capacity violations, or an inability to reach the target value ([`OptimizeError::Infeasible`]).
     pub fn solve(&self) -> Result<Solution, OptimizeError> {
-        let timer = Timer::start();
+        if self.config.time_limit_ms.is_some() && self.clock.is_none() {
+            return Err(OptimizeError::InvalidInput {
+                message: alloc::string::String::from(
+                    "time_limit_ms was specified, but no Clock is available in this environment. In no_std mode, provide a hardware Clock via `.with_clock()` or use node limits via `.with_max_nodes()`.",
+                ),
+            });
+        }
+
+        let start_micros = self.clock.map(Clock::now_micros);
         let item_count = self.input.items.len();
         let rule_count = self.input.rules.len();
 
@@ -135,6 +153,10 @@ impl<'a> Optimizer<'a> {
 
         let mut solver =
             BranchAndBoundSolver::new(&self.input.items, &self.input.capacities, &self.input.rules);
+
+        if let Some(clk) = self.clock {
+            solver.set_clock(clk);
+        }
 
         if let Some(k) = self.config.top_k {
             solver.set_top_k(k);
@@ -183,7 +205,11 @@ impl<'a> Optimizer<'a> {
             return Err(OptimizeError::Infeasible { report });
         }
 
-        let execution_time_ms = timer.elapsed_ms();
+        let execution_time_ms = if let (Some(clk), Some(start)) = (self.clock, start_micros) {
+            clock::elapsed_ms(start, clk.now_micros())
+        } else {
+            0.0
+        };
 
         Ok(Solution {
             best_value,
@@ -212,23 +238,32 @@ pub fn solve_branchless_dp_core(input: &ProblemInput) -> Result<DpResult, String
         return Err("At least 2 capacities required for 2D DP".to_string());
     }
 
-    let c1 = input.capacities[0] as usize;
-    let c2 = input.capacities[1] as usize;
+    let c1 = usize::try_from(input.capacities[0]).unwrap_or(0);
+    let c2 = usize::try_from(input.capacities[1]).unwrap_or(0);
     let n = input.items.len();
     let grid_size = (c1 + 1) * (c2 + 1);
 
     let total_bytes =
-        (grid_size * std::mem::size_of::<u32>()) + (n * grid_size * std::mem::size_of::<u8>());
+        (grid_size * core::mem::size_of::<u32>()) + (n * grid_size * core::mem::size_of::<u8>());
     let mb_whole = u32::try_from(total_bytes / BYTES_PER_MB).unwrap_or(u32::MAX);
     let mb_rem = u32::try_from(total_bytes % BYTES_PER_MB).unwrap_or(0);
     let memory_mb = f64::from(mb_whole) + (f64::from(mb_rem) / BYTES_PER_MB_F64);
 
-    let timer = Timer::start();
+    #[cfg(feature = "std")]
+    let clock: Option<&dyn Clock> = Some(&clock::DEFAULT_CLOCK);
+    #[cfg(not(feature = "std"))]
+    let clock: Option<&dyn Clock> = None;
+
+    let start_micros = clock.map(Clock::now_micros);
 
     let mut solver = Flat2dDpSolver::new(input.capacities[0], input.capacities[1]);
     let (best_value, selected_item_ids) = solver.solve(&input.items);
 
-    let execution_time_ms = timer.elapsed_ms();
+    let execution_time_ms = if let (Some(clk), Some(start)) = (clock, start_micros) {
+        clock::elapsed_ms(start, clk.now_micros())
+    } else {
+        0.0
+    };
 
     Ok(DpResult {
         best_value,
@@ -261,19 +296,31 @@ pub fn compile_to_3sat_core(input: &ProblemInput) -> SatReductionResult {
 
 #[must_use]
 pub fn solve_branch_and_bound_core(input: &ProblemInput) -> BnbResult {
-    let timer = Timer::start();
+    #[cfg(feature = "std")]
+    let clock: Option<&dyn Clock> = Some(&clock::DEFAULT_CLOCK);
+    #[cfg(not(feature = "std"))]
+    let clock: Option<&dyn Clock> = None;
+
+    let start_micros = clock.map(Clock::now_micros);
 
     let mut solver = BranchAndBoundSolver::new(&input.items, &input.capacities, &input.rules);
 
-    let time_limit = if cfg!(debug_assertions) { 50.0 } else { 2.0 };
-    solver.set_time_limit_ms(time_limit);
+    if let Some(clk) = clock {
+        solver.set_clock(clk);
+        let time_limit = if cfg!(debug_assertions) { 50.0 } else { 2.0 };
+        solver.set_time_limit_ms(time_limit);
+    }
 
     let max_nodes = 100_000;
     solver.set_max_nodes(max_nodes);
 
-    let (best_value, selected_item_ids, explored_nodes, status, ..) = solver.solve();
+    let (best_value, selected_item_ids, explored_nodes, status) = solver.solve();
 
-    let execution_time_ms = timer.elapsed_ms();
+    let execution_time_ms = if let (Some(clk), Some(start)) = (clock, start_micros) {
+        clock::elapsed_ms(start, clk.now_micros())
+    } else {
+        0.0
+    };
 
     BnbResult {
         best_value,
@@ -296,101 +343,7 @@ pub fn analyze_infeasibility_core(input: &ProblemInput, bnb_best_value: u32) -> 
     analyzer.analyze()
 }
 
-/// Performs optimization based on the input data and settings.
-///
-/// # Errors
-///
-/// Returns a [`JsValue`] error if serialization or deserialization of the JS object fails, or if the optimization process fails.
-#[wasm_bindgen]
-pub fn optimize(input_value: JsValue, config_value: Option<JsValue>) -> Result<JsValue, JsValue> {
-    let (problem, config) = if let Some(cfg_js) =
-        config_value.filter(|v| !v.is_undefined() && !v.is_null())
-    {
-        let problem: ProblemInput = serde_wasm_bindgen::from_value(input_value)?;
-        let config: OptimizerConfig = serde_wasm_bindgen::from_value(cfg_js)?;
-        (problem, config)
-    } else if let Ok(req) = serde_wasm_bindgen::from_value::<OptimizeRequest>(input_value.clone()) {
-        (req.problem, req.config.unwrap_or_default())
-    } else {
-        let problem: ProblemInput = serde_wasm_bindgen::from_value(input_value)?;
-        (problem, OptimizerConfig::default())
-    };
-
-    let optimizer = Optimizer::new_with_config(&problem, config);
-    match optimizer.solve() {
-        Ok(solution) => Ok(serde_wasm_bindgen::to_value(&solution)?),
-        Err(err) => {
-            let err_obj = serde_wasm_bindgen::to_value(&err)?;
-            Err(err_obj)
-        }
-    }
-}
-
-/// Invokes the 2D dynamic programming core solver.
-///
-/// # Errors
-///
-/// Returns a [`JsValue`] if an error occurs, such as a failure to deserialize a JS object or an insufficient capacity constraint.
-#[wasm_bindgen]
-pub fn solve_branchless_dp(input_value: JsValue) -> Result<JsValue, JsValue> {
-    let input: ProblemInput = serde_wasm_bindgen::from_value(input_value)?;
-    let res = solve_branchless_dp_core(&input).map_err(|e| JsValue::from_str(&e))?;
-    Ok(serde_wasm_bindgen::to_value(&res)?)
-}
-
-/// Reduces the input problem to 3-SAT (in DIMACS CNF format).
-///
-/// # Errors
-///
-/// Returns a [`JsValue`] if the serialization or deserialization of a JS object fails.
-#[wasm_bindgen]
-pub fn compile_to_3sat(input_value: JsValue) -> Result<JsValue, JsValue> {
-    let input: ProblemInput = serde_wasm_bindgen::from_value(input_value)?;
-    let res = compile_to_3sat_core(&input);
-    Ok(serde_wasm_bindgen::to_value(&res)?)
-}
-
-/// Performs a search using the Branch and Bound method.
-///
-/// # Errors
-///
-/// Returns a [`JsValue`] if the serialization or deserialization of a JS object fails.
-#[wasm_bindgen]
-pub fn solve_branch_and_bound(input_value: JsValue) -> Result<JsValue, JsValue> {
-    let input: ProblemInput = serde_wasm_bindgen::from_value(input_value)?;
-    let res = solve_branch_and_bound_core(&input);
-    Ok(serde_wasm_bindgen::to_value(&res)?)
-}
-
-/// Performs static analysis to identify constraint conflicts or causes of infeasibility.
-///
-/// # Errors
-///
-/// Returns a [`JsValue`] if the serialization or deserialization of a JS object fails.
-#[wasm_bindgen]
-pub fn analyze_infeasibility(
-    input_value: JsValue,
-    bnb_best_value: u32,
-) -> Result<JsValue, JsValue> {
-    let input: ProblemInput = serde_wasm_bindgen::from_value(input_value)?;
-    let res = analyze_infeasibility_core(&input, bnb_best_value);
-    Ok(serde_wasm_bindgen::to_value(&res)?)
-}
-
-/// Performs initial solution prediction using graph heuristics.
-///
-/// # Errors
-///
-/// Returns a [`JsValue`] if serialization or deserialization of a JS object fails.
-#[wasm_bindgen]
-pub fn predict_heuristics(input_value: JsValue) -> Result<JsValue, JsValue> {
-    let input: ProblemInput = serde_wasm_bindgen::from_value(input_value)?;
-    let prediction = GraphHeuristics::predict(&input.items, &input.capacities, &input.rules);
-    Ok(serde_wasm_bindgen::to_value(
-        &prediction.initial_selected_ids,
-    )?)
-}
-
+#[cfg(feature = "std")]
 pub use schemars;
 pub use serde_json;
 
@@ -456,12 +409,13 @@ mod tests {
         };
 
         let optimizer = Optimizer::new(&input);
-        match optimizer.solve() {
-            Err(OptimizeError::Infeasible { report }) => {
-                assert!(!report.is_feasible);
-                assert!(!report.logical_chain_conflicts.is_empty());
-            }
-            _ => panic!("Expected infeasible error"),
+        let res = optimizer.solve();
+
+        assert!(matches!(res, Err(OptimizeError::Infeasible { .. })));
+
+        if let Err(OptimizeError::Infeasible { report }) = res {
+            assert!(!report.is_feasible);
+            assert!(!report.logical_chain_conflicts.is_empty());
         }
     }
 }

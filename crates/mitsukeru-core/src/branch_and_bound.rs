@@ -1,13 +1,16 @@
 // src/branch_and_bound.rs
 
+use alloc::collections::BTreeMap;
+use alloc::vec;
+use alloc::vec::Vec;
+use core::cmp::{Ordering, Reverse};
+use core::mem;
+
 use crate::bitset::BitSet;
 use crate::model::CandidateSolution;
 use crate::model::{BusinessRule, Item, SolutionStatus};
 
-#[cfg(not(target_arch = "wasm32"))]
-use std::time::Instant;
-#[cfg(target_arch = "wasm32")]
-use web_time::Instant;
+use crate::clock::Clock;
 
 #[derive(Clone, Debug)]
 struct InternalItem {
@@ -27,9 +30,10 @@ struct ExactSolverCore<'a, const W: usize> {
     best_mask: BitSet<W>,
     explored_nodes: u64,
     max_nodes: Option<u64>,
-    orig_to_sorted: std::collections::HashMap<usize, usize>,
+    orig_to_sorted: BTreeMap<usize, usize>,
     time_limit_ms: Option<f64>,
-    start_time: Option<Instant>,
+    clock: Option<&'a dyn Clock>,
+    start_micros: u64,
     timed_out: bool,
     root_upper_bound: f64,
     top_k: usize,
@@ -55,7 +59,7 @@ impl<'a, const W: usize> ExactSolverCore<'a, W> {
                 value: val,
                 selected_item_ids: ids,
             });
-            self.candidates.sort_by_key(|a| std::cmp::Reverse(a.value));
+            self.candidates.sort_by_key(|a| Reverse(a.value));
             if self.candidates.len() > self.top_k {
                 self.candidates.truncate(self.top_k);
             }
@@ -90,13 +94,9 @@ impl<'a, const W: usize> ExactSolverCore<'a, W> {
             })
             .collect();
 
-        internal_items.sort_by(|a, b| {
-            b.density
-                .partial_cmp(&a.density)
-                .unwrap_or(std::cmp::Ordering::Equal)
-        });
+        internal_items.sort_by(|a, b| b.density.partial_cmp(&a.density).unwrap_or(Ordering::Equal));
 
-        let mut orig_to_sorted = std::collections::HashMap::new();
+        let mut orig_to_sorted = BTreeMap::new();
         for (sorted_idx, it) in internal_items.iter().enumerate() {
             orig_to_sorted.insert(it.original_id, sorted_idx);
         }
@@ -143,7 +143,8 @@ impl<'a, const W: usize> ExactSolverCore<'a, W> {
             best_mask: BitSet::<W>::new(),
             explored_nodes: 0,
             time_limit_ms: None,
-            start_time: None,
+            clock: None,
+            start_micros: 0,
             timed_out: false,
             orig_to_sorted,
             max_nodes: None,
@@ -174,7 +175,9 @@ impl<'a, const W: usize> ExactSolverCore<'a, W> {
         let current_weights = vec![0u32; num_dims];
         self.explored_nodes = 0;
         self.timed_out = false;
-        self.start_time = Some(Instant::now());
+        if let Some(clk) = self.clock {
+            self.start_micros = clk.now_micros();
+        }
 
         self.dfs(0, BitSet::<W>::new(), 0, &current_weights);
 
@@ -197,7 +200,7 @@ impl<'a, const W: usize> ExactSolverCore<'a, W> {
                     value: self.best_value,
                     selected_item_ids: best_ids,
                 });
-                self.candidates.sort_by_key(|a| std::cmp::Reverse(a.value));
+                self.candidates.sort_by_key(|a| Reverse(a.value));
                 if self.candidates.len() > self.top_k {
                     self.candidates.truncate(self.top_k);
                 }
@@ -285,15 +288,13 @@ impl<'a, const W: usize> ExactSolverCore<'a, W> {
         }
 
         if self.explored_nodes.trailing_zeros() >= 12
-            && let (Some(start), Some(limit)) = (self.start_time, self.time_limit_ms)
-            && start.elapsed().as_secs_f64() * 1000.0 >= limit
+            && let (Some(clk), Some(limit_ms)) = (self.clock, self.time_limit_ms)
         {
-            self.timed_out = true;
-            return;
-        }
-
-        if self.timed_out {
-            return;
+            let current_ms = crate::clock::elapsed_ms(self.start_micros, clk.now_micros());
+            if current_ms >= limit_ms {
+                self.timed_out = true;
+                return;
+            }
         }
 
         self.explored_nodes += 1;
@@ -395,6 +396,7 @@ pub struct BranchAndBoundSolver<'a> {
     initial_selected_ids: Vec<usize>,
     time_limit_ms: Option<f64>,
     max_nodes: Option<u64>,
+    clock: Option<&'a dyn Clock>,
     pub explored_nodes: u64,
     upper_bound: f64,
     optimality_gap: f64,
@@ -413,12 +415,17 @@ impl<'a> BranchAndBoundSolver<'a> {
             initial_selected_ids: Vec::new(),
             time_limit_ms: None,
             max_nodes: None,
+            clock: None,
             explored_nodes: 0,
             upper_bound: 0.0,
             optimality_gap: 0.0,
             top_k: 1,
             candidates: Vec::new(),
         }
+    }
+
+    pub fn set_clock(&mut self, clock: &'a dyn Clock) {
+        self.clock = Some(clock);
     }
 
     pub fn set_top_k(&mut self, k: usize) {
@@ -456,6 +463,7 @@ impl<'a> BranchAndBoundSolver<'a> {
     fn solve_fixed<const W: usize>(&mut self) -> (u32, Vec<usize>, u64, SolutionStatus) {
         let mut core = ExactSolverCore::<W>::new(self.items, self.capacities, self.rules);
         core.top_k = self.top_k;
+        core.clock = self.clock;
         if let Some(limit) = self.time_limit_ms {
             core.time_limit_ms = Some(limit);
         }
@@ -483,7 +491,7 @@ impl<'a> BranchAndBoundSolver<'a> {
     }
 
     pub fn take_candidates(&mut self) -> Vec<CandidateSolution> {
-        std::mem::take(&mut self.candidates)
+        mem::take(&mut self.candidates)
     }
 }
 
@@ -523,7 +531,7 @@ mod tests {
         let mut items = Vec::new();
         for i in 0u32..20 {
             items.push(Item {
-                id: usize::try_from(i).unwrap(),
+                id: usize::try_from(i).unwrap_or(0),
                 name: format!("Item_{i}"),
                 weights: vec![10],
                 value: (i + 1) * 10,

@@ -1,10 +1,11 @@
 // benches/solver_bench.rs
 
 // cargo bench --bench solver_bench -- --save-baseline initial
-
 // cargo bench --bench solver_bench -- --baseline initial
-
 // target/criterion/report/index.html
+
+// cargo clippy --all-targets -- -W clippy::pedantic 2>&1 > clippy_report.txt
+// cargo clippy -p mitsukeru-core --target thumbv7em-none-eabi --no-default-features
 
 use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 use mitsukeru::{BranchAndBoundSolver, Optimizer, ProblemInput};
@@ -36,7 +37,7 @@ fn bench_solver_instances(c: &mut Criterion) {
                 .trim()
                 .replace(' ', "_")
         } else {
-            let letter = (b'A' + u8::try_from(idx).unwrap()) as char;
+            let letter = char::from(b'A' + u8::try_from(idx).unwrap_or(0));
             format!("Test_{letter}")
         };
         let id = format!("{}_{}items", prefix, problem.items.len());

@@ -1,5 +1,8 @@
 // dp_branchless.rs
 
+use alloc::vec::Vec;
+use core::mem;
+
 use crate::model::Item;
 
 pub struct Flat2dDpSolver {
@@ -12,8 +15,8 @@ pub struct Flat2dDpSolver {
 impl Flat2dDpSolver {
     #[must_use]
     pub fn new(cap1: u32, cap2: u32) -> Self {
-        let c1 = cap1 as usize;
-        let c2 = cap2 as usize;
+        let c1 = usize::try_from(cap1).unwrap_or(0);
+        let c2 = usize::try_from(cap2).unwrap_or(0);
         let size = (c1 + 1) * (c2 + 1);
         Self {
             cap1: c1,
@@ -41,8 +44,8 @@ impl Flat2dDpSolver {
             if item.weights.len() < 2 {
                 continue;
             }
-            let iw1 = item.weights[0] as usize;
-            let iw2 = item.weights[1] as usize;
+            let iw1 = usize::try_from(item.weights[0]).unwrap_or(0);
+            let iw2 = usize::try_from(item.weights[1]).unwrap_or(0);
             let val = item.value;
             let history_offset = item_idx * area;
 
@@ -85,8 +88,9 @@ impl Flat2dDpSolver {
             if item.weights.len() < 2 {
                 continue;
             }
-            let iw1 = item.weights[0] as usize;
-            let iw2 = item.weights[1] as usize;
+
+            let iw1 = usize::try_from(item.weights[0]).unwrap_or(0);
+            let iw2 = usize::try_from(item.weights[1]).unwrap_or(0);
 
             if cur_w1 >= iw1 && cur_w2 >= iw2 {
                 let curr_idx = self.get_index(cur_w1, cur_w2);
@@ -111,9 +115,9 @@ impl Flat2dDpSolver {
 
     #[must_use]
     pub fn allocated_bytes(&self) -> (usize, usize, usize) {
-        let table_bytes = self.table.capacity() * std::mem::size_of::<u32>();
-        let history_bytes = self.decision_history.capacity() * std::mem::size_of::<u64>();
-        let total = table_bytes + history_bytes + std::mem::size_of::<Self>();
+        let table_bytes = self.table.capacity() * mem::size_of::<u32>();
+        let history_bytes = self.decision_history.capacity() * mem::size_of::<u64>();
+        let total = table_bytes + history_bytes + mem::size_of::<Self>();
         (table_bytes, history_bytes, total)
     }
 }

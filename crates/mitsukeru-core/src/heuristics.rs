@@ -1,17 +1,18 @@
 // src/heuristics.rs
 
-use crate::bitset::BitSet;
-use crate::model::{BusinessRule, Item};
+use alloc::vec;
+use alloc::vec::Vec;
+use core::cmp::Ordering;
+use core::mem;
 
-#[cfg(not(target_arch = "wasm32"))]
-use std::time::Instant;
-#[cfg(target_arch = "wasm32")]
-use web_time::Instant;
+use crate::bitset::BitSet;
+use crate::clock::Clock;
+use crate::model::{BusinessRule, Item};
 
 pub const EMBED_DIM: usize = 8;
 const MESSAGE_PASSING_ROUNDS: usize = 2;
-const FIX_HIGH_THRESHOLD: f32 = 0.70;
-const FIX_LOW_THRESHOLD: f32 = 0.30;
+const FIX_HIGH_THRESHOLD: f64 = 0.70;
+const FIX_LOW_THRESHOLD: f64 = 0.30;
 
 type HeuristicBitSet = BitSet<32>;
 
@@ -28,7 +29,7 @@ pub struct HeuristicPrediction {
     pub decisions: Vec<VariableDecision>,
     pub initial_best_value: u32,
     pub initial_selected_ids: Vec<usize>,
-    pub confidence_scores: Vec<f32>,
+    pub confidence_scores: Vec<f64>,
     pub execution_time_ms: f64,
 }
 
@@ -51,7 +52,24 @@ impl GraphHeuristics {
         capacities: &[u32],
         rules: &[BusinessRule],
     ) -> HeuristicPrediction {
-        let timer = Instant::now();
+        #[cfg(feature = "std")]
+        {
+            Self::predict_with_clock(items, capacities, rules, Some(&crate::clock::DEFAULT_CLOCK))
+        }
+        #[cfg(not(feature = "std"))]
+        {
+            Self::predict_with_clock(items, capacities, rules, None)
+        }
+    }
+
+    #[must_use]
+    pub fn predict_with_clock(
+        items: &[Item],
+        capacities: &[u32],
+        rules: &[BusinessRule],
+        clock: Option<&dyn Clock>,
+    ) -> HeuristicPrediction {
+        let start_micros = clock.map(Clock::now_micros);
         let n = items.len().min(HeuristicBitSet::CAPACITY);
 
         if n == 0 {
@@ -88,7 +106,11 @@ impl GraphHeuristics {
             Self::generate_feasible_solution(items, capacities, &requires_out, &conflicts, &scores);
 
         let decisions = Self::make_decisions(n, &scores, &initial_selected);
-        let elapsed_ms = timer.elapsed().as_secs_f64() * 1000.0;
+        let elapsed_ms = if let (Some(clk), Some(start)) = (clock, start_micros) {
+            crate::clock::elapsed_ms(start, clk.now_micros())
+        } else {
+            0.0
+        };
 
         HeuristicPrediction {
             decisions,
@@ -247,25 +269,24 @@ impl GraphHeuristics {
                     };
                 }
             }
-            std::mem::swap(&mut current_emb, &mut next_emb);
+            mem::swap(&mut current_emb, &mut next_emb);
         }
         current_emb
     }
 
-    fn compute_scores(embeddings: &[[f64; EMBED_DIM]]) -> Vec<f32> {
+    fn compute_scores(embeddings: &[[f64; EMBED_DIM]]) -> Vec<f64> {
         let mut scores = Vec::with_capacity(embeddings.len());
         for emb in embeddings {
             let logit = emb[0] * 1.8 - emb[1] * 1.2 - emb[2] * 1.2 + emb[3] * 1.5 - emb[6] * 1.0;
-            let prob_f64 = 1.0 / (1.0 + (-logit).exp());
-            let prob_f32 = prob_f64.to_string().parse::<f32>().unwrap_or(0.5);
-            scores.push(prob_f32);
+            let prob_f64 = 1.0 / (1.0 + libm::exp(-logit));
+            scores.push(prob_f64);
         }
         scores
     }
 
     fn make_decisions(
         n: usize,
-        scores: &[f32],
+        scores: &[f64],
         initial_selected: &[usize],
     ) -> Vec<VariableDecision> {
         let mut decisions = vec![VariableDecision::Free; n];
@@ -291,16 +312,14 @@ impl GraphHeuristics {
         capacities: &[u32],
         requires_out: &[Vec<usize>],
         conflicts: &[Vec<usize>],
-        scores: &[f32],
+        scores: &[f64],
     ) -> (u32, Vec<usize>) {
         let n = items.len().min(HeuristicBitSet::CAPACITY);
         let num_dims = capacities.len();
 
         let mut order: Vec<usize> = (0..n).collect();
         order.sort_unstable_by(|&a, &b| {
-            scores[b]
-                .partial_cmp(&scores[a])
-                .unwrap_or(std::cmp::Ordering::Equal)
+            scores[b].partial_cmp(&scores[a]).unwrap_or(Ordering::Equal)
         });
 
         let mut selected_mask = HeuristicBitSet::new();

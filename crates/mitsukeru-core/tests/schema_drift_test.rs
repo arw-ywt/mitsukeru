@@ -2,37 +2,37 @@
 // cargo test --test schema_drift_test
 
 use mitsukeru::{OptimizeError, OptimizeRequest, ProblemInput, Solution};
+use schemars::schema_for;
 use std::fs;
 
 #[test]
-fn test_export_json_schema() {
-    fs::create_dir_all("schemas").unwrap();
+fn generate_or_verify_schemas() -> Result<(), Box<dyn core::error::Error>> {
+    let schema_input = schema_for!(ProblemInput);
+    let schema_solution = schema_for!(Solution);
+    let schema_request = schema_for!(OptimizeRequest);
+    let schema_error = schema_for!(OptimizeError);
 
-    let schema_input = schemars::schema_for!(ProblemInput);
+    fs::create_dir_all("schemas")?;
+
     fs::write(
         "schemas/problem-input.schema.json",
-        serde_json::to_string_pretty(&schema_input).unwrap(),
-    )
-    .unwrap();
+        serde_json::to_string_pretty(&schema_input)?,
+    )?;
 
-    let schema_solution = schemars::schema_for!(Solution);
     fs::write(
         "schemas/solution.schema.json",
-        serde_json::to_string_pretty(&schema_solution).unwrap(),
-    )
-    .unwrap();
+        serde_json::to_string_pretty(&schema_solution)?,
+    )?;
 
-    let schema_request = schemars::schema_for!(OptimizeRequest);
     fs::write(
         "schemas/optimize-request.schema.json",
-        serde_json::to_string_pretty(&schema_request).unwrap(),
-    )
-    .unwrap();
+        serde_json::to_string_pretty(&schema_request)?,
+    )?;
 
-    let schema_error = schemars::schema_for!(OptimizeError);
     fs::write(
         "schemas/optimize-error.schema.json",
-        serde_json::to_string_pretty(&schema_error).unwrap(),
-    )
-    .unwrap();
+        serde_json::to_string_pretty(&schema_error)?,
+    )?;
+
+    Ok(())
 }

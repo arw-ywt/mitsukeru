@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "refactor/*" ]
   pull_request:
     branches: [ "main" ]
   workflow_dispatch:
@@ -34,8 +34,31 @@ jobs:
       - name: Check code formatting
         run: cargo fmt --all --check
 
-      - name: Run Clippy (Pedantic checks)
-        run: cargo clippy --lib --tests -- -D warnings -W clippy::pedantic
+      - name: Run Clippy (Pedantic checks across workspace)
+        run: cargo clippy --workspace --all-targets -- -D warnings -W clippy::pedantic
+
+  # 【新設】組み込み no_std の安全性を保証するガード
+  check-embedded:
+    name: Embedded (no_std) Verification
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust stable with Cortex-M target
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: thumbv7em-none-eabi
+          components: clippy
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Verify no_std compilation (mitsukeru-core)
+        run: cargo check -p mitsukeru-core --target thumbv7em-none-eabi --no-default-features
+
+      - name: Run no_std Clippy
+        run: cargo clippy -p mitsukeru-core --target thumbv7em-none-eabi --no-default-features -- -D warnings -W clippy::pedantic
 
   test-native:
     name: Native Tests (${{ matrix.os }})
@@ -55,10 +78,10 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Run unit & integration tests (Debug)
-        run: cargo test --lib --tests
+        run: cargo test --workspace
 
       - name: Run all tests (Release Mode)
-        run: cargo test --lib --tests --release
+        run: cargo test --workspace --release
 
   build-wasm:
     name: WebAssembly & Package Verification
@@ -83,12 +106,12 @@ jobs:
           node-version: "20"
 
       - name: Build WebAssembly (bundler target)
-        run: wasm-pack build --release --target bundler
+        run: wasm-pack build crates/mitsukeru-wasm --release --target bundler
 
       - name: Verify npm package contents
         run: |
-          cd pkg
+          cd crates/mitsukeru-wasm/pkg
           npm pack --dry-run
 
-      - name: Verify Cargo packaging (Crates.io dry-run)
-        run: cargo package --no-verify --allow-dirty
+      - name: Verify Cargo packaging (mitsukeru-core dry-run)
+        run: cargo package -p mitsukeru-core --no-verify --allow-dirty

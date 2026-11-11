@@ -1,0 +1,19 @@
+{
+  "$schema": "../schemas/v1/mitsukeru-schema.json",
+  "items": [
+    {
+      "id": 0,
+      "name": "Option A",
+      "weights": [10, 20],
+      "value": 100
+    }
+  ],
+  "capacities": [50, 60],
+  "rules": [
+    {
+      "type": "requires",
+      "from_id": 0,
+      "to_id": 1
+    }
+  ]
+}

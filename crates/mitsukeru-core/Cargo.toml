@@ -1,0 +1,36 @@
+[package]
+name = "mitsukeru"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "A zero-C-dependency, deterministic, safety-critical constraint optimization engine written in 100% pure Rust."
+keywords = ["knapsack", "optimization", "sat", "solver"]
+categories = ["algorithms", "science"]
+readme = "../../README.md"
+
+[features]
+default = ["std"]
+std = [
+    "serde/std",
+    "serde_json/std",
+    "schemars",
+    "dep:web-time",
+]
+
+[dependencies]
+serde = { version = "1.0", default-features = false, features = ["derive", "alloc"] }
+serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
+schemars = { version = "0.8", optional = true }
+web-time = { version = "1.1", optional = true }
+libm = "0.2"
+
+[lints]
+workspace = true
+
+[[bench]]
+name = "solver_bench"
+harness = false
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }

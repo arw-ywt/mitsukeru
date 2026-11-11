@@ -1,0 +1,206 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Optimization Error",
+  "description": "Represents an infeasible configuration or validation failure.",
+  "oneOf": [
+    {
+      "description": "The problem cannot be satisfied due to conflicting constraints.",
+      "type": "object",
+      "required": [
+        "report",
+        "type"
+      ],
+      "properties": {
+        "report": {
+          "$ref": "#/definitions/ConflictReport"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "Infeasible"
+          ]
+        }
+      }
+    },
+    {
+      "description": "The input parameters are malformed or invalid.",
+      "type": "object",
+      "required": [
+        "message",
+        "type"
+      ],
+      "properties": {
+        "message": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "InvalidInput"
+          ]
+        }
+      }
+    }
+  ],
+  "definitions": {
+    "CapacityConflict": {
+      "title": "Capacity Overflow Conflict Details",
+      "description": "Identifies which resource limit is exceeded and by which items.",
+      "type": "object",
+      "required": [
+        "bundle_ids",
+        "capacity_limit",
+        "consumed_weight",
+        "dimension",
+        "message",
+        "root_id"
+      ],
+      "properties": {
+        "bundle_ids": {
+          "description": "List of item IDs included in this bundle.",
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint",
+            "minimum": 0.0
+          }
+        },
+        "capacity_limit": {
+          "description": "Maximum allowed capacity limit.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "consumed_weight": {
+          "description": "Actual resource amount consumed.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "dimension": {
+          "description": "The resource dimension index (0-based) that overflowed.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0.0
+        },
+        "message": {
+          "description": "Human-readable explanation of the overflow.",
+          "type": "string"
+        },
+        "root_id": {
+          "description": "The root item triggering this capacity check.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0.0
+        }
+      }
+    },
+    "ChainConflict": {
+      "title": "Logical Chain Conflict Details",
+      "description": "Identifies a conflict where a dependency chain leads to a mutually exclusive item.",
+      "type": "object",
+      "required": [
+        "conflicting_id",
+        "message",
+        "path_ids",
+        "root_id"
+      ],
+      "properties": {
+        "conflicting_id": {
+          "description": "The prerequisite item that conflicts with the root.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0.0
+        },
+        "message": {
+          "description": "Human-readable explanation of the chain conflict.",
+          "type": "string"
+        },
+        "path_ids": {
+          "description": "Ordered list of item IDs forming the requirement path (e.g., [A, B, C]).",
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint",
+            "minimum": 0.0
+          }
+        },
+        "root_id": {
+          "description": "The root item being evaluated.",
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0.0
+        }
+      }
+    },
+    "ConflictReport": {
+      "title": "Conflict Analysis Report",
+      "description": "Structured diagnostic report explaining why a problem instance is infeasible.",
+      "type": "object",
+      "required": [
+        "capacity_conflicts",
+        "is_feasible",
+        "logical_chain_conflicts"
+      ],
+      "properties": {
+        "capacity_conflicts": {
+          "description": "Detailed list of resource capacity overflows.",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/CapacityConflict"
+          }
+        },
+        "is_feasible": {
+          "description": "True if the configuration satisfies all constraints.",
+          "type": "boolean"
+        },
+        "logical_chain_conflicts": {
+          "description": "Detailed list of prerequisite and mutual exclusion chain conflicts.",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ChainConflict"
+          }
+        },
+        "target_conflict": {
+          "description": "Target value unreachability conflict, if a target was specified.",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/TargetConflict"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "TargetConflict": {
+      "title": "Target Value Conflict Details",
+      "description": "Identifies when a target objective score cannot be achieved.",
+      "type": "object",
+      "required": [
+        "achievable_value",
+        "message",
+        "target_value"
+      ],
+      "properties": {
+        "achievable_value": {
+          "description": "The maximum achievable score under constraints.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "message": {
+          "description": "Human-readable explanation.",
+          "type": "string"
+        },
+        "target_value": {
+          "description": "The requested target value.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        }
+      }
+    }
+  }
+}

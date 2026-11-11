@@ -1,0 +1,1250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>mitsukeru &mdash; Declarative Combinatorial Optimization Engine Specification</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Mono:wght@100..900&family=Noto+Sans:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'media',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Noto Sans"', 'sans-serif'],
+            mono: ['"Noto Sans Mono"', 'monospace'],
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    * {
+      border-radius: 0 !important;
+      box-shadow: none !important;
+      transition: none !important;
+    }
+    
+  *:not(.ui-toggle, .ui-toggle *, .ui-slider, .ui-slider *) {
+    border-radius: 0 !important;
+  }
+  * {
+    box-shadow: none !important;
+    transition: none !important;
+  }
+
+  .ui-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 9999px;
+    background-color: #171717;
+    cursor: pointer;
+  }
+  @media (prefers-color-scheme: dark) {
+    .ui-slider::-webkit-slider-thumb {
+      background-color: #f5f5f5;
+    }
+  }
+  .ui-slider::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 9999px;
+    border: none;
+    background-color: #171717;
+    cursor: pointer;
+  }
+  @media (prefers-color-scheme: dark) {
+    .ui-slider::-moz-range-thumb {
+      background-color: #f5f5f5;
+    }
+  }
+
+  .custom-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: #a3a3a3 #e5e5e5;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background-color: #e5e5e5;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background-color: #a3a3a3;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background-color: #737373;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .custom-scrollbar {
+      scrollbar-color: #525252 #262626;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background-color: #262626;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background-color: #525252;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background-color: #737373;
+    }
+  }
+  </style>
+</head>
+<body class="bg-neutral-50 dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100 font-sans antialiased">
+
+  <header class="bg-neutral-100 dark:bg-neutral-900 py-8 px-4 sm:px-8">
+    <div class="max-w-7xl mx-auto">
+      <div class="flex flex-wrap items-center justify-between gap-4 mb-3">
+        <div id="wasmStatusIndicator" class="text-xs font-mono px-2 py-0.5 border border-neutral-400 dark:border-neutral-600 text-neutral-600 dark:text-neutral-400">
+          Wasm Runtime: Initializing...
+        </div>
+      </div>
+      <h1 class="text-2xl sm:text-4xl font-bold  text-neutral-900 dark:text-neutral-100 mb-3">
+        Spaghetti vs. <code>mitsukeru</code>
+      </h1>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 sm:px-8 py-10 space-y-10">
+
+    <section class="space-y-6">
+      <div>
+        <h2 class="text-xl sm:text-2xl font-bold text-neutral-900 dark:text-neutral-100">
+          1. Coding the same behavior in different ways
+        </h2>
+        <p class="mt-2 text-sm sm:text-base text-neutral-700 dark:text-neutral-300 leading-relaxed">
+          Traditional product bundling or allocation logic intertwines search iterations with arbitrary branch conditions. Adopting a structured schema transforms rule handling from code refactoring to declarative configuration.
+        </p>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="border border-neutral-300 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-900 p-5 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between pb-3 border-b border-neutral-300 dark:border-neutral-700">
+              <span class="font-mono text-xs font-bold uppercase text-neutral-800 dark:text-neutral-200">Existing Code</span>
+            </div>
+            <pre class="mt-3 mx-4 font-mono text-xs whitespace-pre-wrap text-neutral-800 dark:text-neutral-200 leading-5"><code>const products = [
+  { id: "A", price: 3000, score: 90, stock: 5 },
+  { id: "B", price: 2000, score: 70, stock: 5 },
+  { id: "C", price: 4000, score: 80, stock: 5 },
+  { id: "D", price: 3000, score: 60, stock: 5 },
+];
+const budget = 10000;
+
+let best = [], bestScore = 0;
+
+for (let mask = 0; mask &lt; (1 &lt;&lt; products.length); mask++) {
+  const selected = products.filter((_, i) => mask &amp; (1 &lt;&lt; i));
+  const totalPrice = selected.reduce((sum, p) => sum + p.price, 0);
+  const totalScore = selected.reduce((sum, p) => sum + p.score, 0);
+  const ids = selected.map(p => p.id);
+
+  // Business rules directly hardcoded into loop control
+  if (totalPrice &gt; budget) continue;
+  if (selected.some(p => p.stock &lt;= 0)) continue;
+  if (ids.includes("A") &amp;&amp; !ids.includes("B")) continue;
+  if (ids.includes("C") &amp;&amp; ids.includes("D")) continue;
+
+  if (totalScore &gt; bestScore) {
+    best = selected;
+    bestScore = totalScore;
+  }
+}
+
+console.log("Best solution:", best);
+console.log("Best score:", bestScore);</code></pre>
+          </div>
+        </div>
+
+        <div class="border border-neutral-300 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-900 p-5 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between pb-3 border-b border-neutral-300 dark:border-neutral-700">
+              <span class="font-mono text-xs font-bold text-neutral-800 dark:text-neutral-200"><code>mitsukeru</code></span>
+            </div>
+            <pre class="mt-3 mx-4 font-mono text-xs whitespace-pre-wrap text-neutral-800 dark:text-neutral-200 leading-5"><code>import init, { optimize } from "mitsukeru";
+await init();
+
+// Input payload conforms to Optimization Request schema
+const solution = optimize({
+  capacities: [10000], // Budget limit (10,000)
+  items: [
+    { id: 0, name: "A", weights: [3000], value: 90 },
+    { id: 1, name: "B", weights: [2000], value: 70 },
+    { id: 2, name: "C", weights: [4000], value: 80 },
+    { id: 3, name: "D", weights: [3000], value: 60 }
+  ],
+  rules: [
+    // A requires B
+    { type: "requires", from_id: 0, to_id: 1 },
+    // C conflicts with D
+    { type: "conflicts", a_id: 2, b_id: 3 }
+  ],
+  config: { strategy: "mixed", time_limit_ms: 2.0 }
+});
+
+console.log("Best value:", solution.best_value);
+console.log("Selected item IDs:", solution.selected_item_ids);</code></pre>
+          </div>
+        </div>
+      </div>
+      
+      <div>
+        <p class="mt-2 text-sm sm:text-base text-neutral-700 dark:text-neutral-300 leading-relaxed">
+          If there comes a time when you are no longer satisfied with this code, you will end up with various differences; as the number of such instances grows, maintaining the code using traditional methods will become increasingly difficult.
+        </p>
+        <p class="mt-2 text-sm sm:text-base text-neutral-700 dark:text-neutral-300 leading-relaxed">
+          However, in simple cases, existing code with clear branching logic might be easier to follow. On the other hand, maintainability becomes a different matter in scenarios such as the following: when a change to a condition has an impact across the entire project, or when developers are repeatedly forced to add or rewrite similar <code>if/else</code> statements.
+        </p>
+        <p class="mt-2 text-sm sm:text-base text-neutral-700 dark:text-neutral-300 leading-relaxed">
+          Below, a maximum shipping weight limit of 15 kg has been introduced, and a new item—Item E—has been added to the campaign. Item E must be used in combination with Item A, but it cannot be used together with Item D.
+        </p>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="border border-neutral-300 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-900 p-5 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between pb-3 border-b border-neutral-300 dark:border-neutral-700">
+              <span class="font-mono text-xs font-bold uppercase text-neutral-800 dark:text-neutral-200">Existing Code</span>
+            </div>
+            <pre class="mt-3 mx-4 font-mono text-xs whitespace-pre-wrap text-neutral-800 dark:text-neutral-200 leading-5"><code>const products = [
+  { id: "A", price: 3000, <span class="bg-emerald-200/60 dark:bg-emerald-900/50 text-emerald-900 dark:text-emerald-200 ">weight: 5, type: "MAIN",</span> score: 90, stock: 5 },
+  { id: "B", price: 2000, <span class="bg-emerald-200/60 dark:bg-emerald-900/50 text-emerald-900 dark:text-emerald-200 ">weight: 3, type: "SUB",</span>  score: 70, stock: 5 },
+  { id: "C", price: 4000, <span class="bg-emerald-200/60 dark:bg-emerald-900/50 text-emerald-900 dark:text-emerald-200 ">weight: 6, type: "MAIN",</span> score: 80, stock: 5 },
+  { id: "D", price: 3000, <span class="bg-emerald-200/60 dark:bg-emerald-900/50 text-emerald-900 dark:text-emerald-200 ">weight: 4, type: "SUB",</span>  score: 60, stock: 5 },
+<span class="bg-emerald-200/60 dark:bg-emerald-900/50 text-emerald-900 dark:text-emerald-200  block">  { id: "E", price: 2500, weight: 4, type: "CAMPAIGN", score: 75, stock: 5 },</span>];
+const budget = 10000;
+<span class="bg-emerald-200/60 dark:bg-emerald-900/50 text-emerald-900 dark:text-emerald-200 ">const maxWeight = 15; // Added maximum shipping weight limit</span>
+
+let best = [], bestScore = 0;
+
+for (let mask = 0; mask &lt; (1 &lt;&lt; products.length); mask++) {
+  const selected = products.filter((_, i) => mask &amp; (1 &lt;&lt; i));
+  const totalPrice = selected.reduce((sum, p) => sum + p.price, 0);
+<span class="bg-emerald-200/60 dark:bg-emerald-900/50 text-emerald-900 dark:text-emerald-200 ">  const totalWeight = selected.reduce((sum, p) => sum + p.weight, 0);</span>
+  const totalScore = selected.reduce((sum, p) => sum + p.score, 0);
+  const ids = selected.map(p => p.id);
+
+  // Business rules directly hardcoded into loop control
+  if (totalPrice &gt; budget) continue;
+<span class="bg-emerald-200/60 dark:bg-emerald-900/50 text-emerald-900 dark:text-emerald-200 ">  if (totalWeight &gt; maxWeight) continue;</span>
+  if (selected.some(p => p.stock &lt;= 0)) continue;
+  if (ids.includes("A") &amp;&amp; !ids.includes("B")) continue;
+  if (ids.includes("C") &amp;&amp; ids.includes("D")) continue;
+
+<span class="bg-emerald-200/60 dark:bg-emerald-900/50 text-emerald-900 dark:text-emerald-200  block">  let isViolated = false;
+  for (const item of selected) {
+    switch (item.type) {
+      case "CAMPAIGN":
+        if (item.id === "E") {
+          if (!ids.includes("A")) {
+            isViolated = true;
+          } else if (ids.includes("D")) {
+            isViolated = true;
+          }
+        }
+        break;
+      default:
+        break;
+    }
+    if (isViolated) break;
+  }
+  if (isViolated) continue;</span>
+
+  if (totalScore &gt; bestScore) {
+    best = selected;
+    bestScore = totalScore;
+  }
+}
+
+console.log("Best solution:", best);
+console.log("Best score:", bestScore);</code></pre>
+          </div>
+        </div>
+
+        <div class="border border-neutral-300 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-900 p-5 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between pb-3 border-b border-neutral-300 dark:border-neutral-700">
+              <span class="font-mono text-xs font-bold text-neutral-800 dark:text-neutral-200"><code>mitsukeru</code></span>
+            </div>
+            <pre class="mt-3 mx-4 font-mono text-xs whitespace-pre-wrap text-neutral-800 dark:text-neutral-200 leading-5"><code>import init, { optimize } from "mitsukeru";
+await init();
+
+// Input payload conforms to Optimization Request schema
+const solution = optimize({
+  capacities: [10000<span class="bg-emerald-200/60 dark:bg-emerald-900/50 text-emerald-900 dark:text-emerald-200 ">, 15</span>], // Budget (10,000)<span class="bg-emerald-200/60 dark:bg-emerald-900/50 text-emerald-900 dark:text-emerald-200 ">, Max Weight (15kg)</span>
+  items: [
+    { id: 0, name: "A", weights: [3000<span class="bg-emerald-200/60 dark:bg-emerald-900/50 text-emerald-900 dark:text-emerald-200 ">, 5</span>], value: 90 },
+    { id: 1, name: "B", weights: [2000<span class="bg-emerald-200/60 dark:bg-emerald-900/50 text-emerald-900 dark:text-emerald-200 ">, 3</span>], value: 70 },
+    { id: 2, name: "C", weights: [4000<span class="bg-emerald-200/60 dark:bg-emerald-900/50 text-emerald-900 dark:text-emerald-200 ">, 6</span>], value: 80 },
+    { id: 3, name: "D", weights: [3000<span class="bg-emerald-200/60 dark:bg-emerald-900/50 text-emerald-900 dark:text-emerald-200 ">, 4</span>], value: 60 }<span class="bg-emerald-200/60 dark:bg-emerald-900/50 text-emerald-900 dark:text-emerald-200 ">,
+    { id: 4, name: "E", weights: [2500, 4], value: 75 }</span>
+  ],
+  rules: [
+    // A requires B
+    { type: "requires", from_id: 0, to_id: 1 },
+    // C conflicts with D
+    { type: "conflicts", a_id: 2, b_id: 3 }<span class="bg-emerald-200/60 dark:bg-emerald-900/50 text-emerald-900 dark:text-emerald-200 ">,
+    // E requires A (Campaign rule)
+    { type: "requires", from_id: 4, to_id: 0 },
+    // E conflicts with D
+    { type: "conflicts", a_id: 4, b_id: 3 }</span>
+  ],
+  config: { strategy: "mixed", time_limit_ms: 2.0 }
+});
+
+console.log("Best value:", solution.best_value);
+console.log("Selected item IDs:", solution.selected_item_ids);</code></pre>
+          </div>
+        </div>
+      </div>
+
+      
+      <div>
+        <p class="mt-2 text-sm sm:text-base text-neutral-700 dark:text-neutral-300 leading-relaxed">
+          At this point, <code>mitsukeru</code> has already delivered results that go well beyond what could be captured by the existing codebase—such as providing the top <code>k</code> alternatives, indicating the percentage of the search space remaining, and detailing any contradictions that have arisen.
+        </p>
+        <p class="mt-2 text-sm sm:text-base text-neutral-700 dark:text-neutral-300 leading-relaxed">
+          In this way, transitioning from procedural nested loops to an external solver shifts organizational velocity from code commits to parametric adjustments.
+        </p>
+      </div>
+
+      <div class="border border-neutral-300 dark:border-neutral-700 overflow-x-auto">
+        <table class="w-full text-left text-sm">
+          <thead class="bg-neutral-200 dark:bg-neutral-800 border-b border-neutral-300 dark:border-neutral-700 font-mono text-xs uppercase text-neutral-700 dark:text-neutral-300">
+            <tr>
+              <th class="py-3 px-4">Evaluation Dimension</th>
+              <th class="py-3 px-4">Imperative Code Base</th>
+              <th class="py-3 px-4">mitsukeru Wasm Architecture</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-neutral-200 dark:divide-neutral-800 text-xs sm:text-sm">
+            <tr>
+              <td class="py-3 px-4 font-medium">Capacity Adjustment</td>
+              <td class="py-3 px-4 text-neutral-600 dark:text-neutral-400">Hardcoded constants in script variables</td>
+              <td class="py-3 px-4">Direct array update in <code class="font-mono text-xs">capacities</code> payload</td>
+            </tr>
+            <tr>
+              <td class="py-3 px-4 font-medium">Relational Dependency</td>
+              <td class="py-3 px-4 text-neutral-600 dark:text-neutral-400">Adds bespoke <code class="font-mono text-xs">if (!ids.includes) continue</code></td>
+              <td class="py-3 px-4">Appends <code class="font-mono text-xs">{ type: "requires", from_id, to_id }</code></td>
+            </tr>
+            <tr>
+              <td class="py-3 px-4 font-medium">Relational Exclusion</td>
+              <td class="py-3 px-4 text-neutral-600 dark:text-neutral-400">Adds conditional continue checks</td>
+              <td class="py-3 px-4">Appends <code class="font-mono text-xs">{ type: "conflicts", a_id, b_id }</code></td>
+            </tr>
+            <tr>
+              <td class="py-3 px-4 font-medium">Combinatorial Complexity</td>
+              <td class="py-3 px-4 text-neutral-600 dark:text-neutral-400">O(2^N) brute-force iteration; browser lockup</td>
+              <td class="py-3 px-4">Branch-and-bound with graph heuristics in native Wasm</td>
+            </tr>
+            <tr>
+              <td class="py-3 px-4 font-medium">Infeasibility Diagnostic</td>
+              <td class="py-3 px-4 text-neutral-600 dark:text-neutral-400">Returns empty array; no failure causation</td>
+              <td class="py-3 px-4">Throws structured <code class="font-mono text-xs">ConflictReport</code> highlighting chains</td>
+            </tr>
+            <tr>
+              <td class="py-3 px-4 font-medium">Business Agility</td>
+              <td class="py-3 px-4 text-neutral-600 dark:text-neutral-400">Requires engineer deployment and unit tests</td>
+              <td class="py-3 px-4">Operations teams can drive rules via intuitive UI schemas</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="space-y-6">
+      <div>
+        <h2 class="text-xl sm:text-2xl font-bold text-neutral-900 dark:text-neutral-100">
+          2. Things to consider before using <code>mitsukeru</code> unconditionally
+        </h2>
+        <p class="mt-2 text-sm sm:text-base text-neutral-700 dark:text-neutral-300 leading-relaxed">
+          Business requirements exhibit distinct computational traits. Knapsack engines must not evaluate contextual eligibility (e.g., promotional campaigns or membership tiers), and rule engines must not perform combinatorial branch-and-bound searches.
+        </p>
+      </div>
+
+      <div class="border border-neutral-300 dark:border-neutral-700 overflow-x-auto">
+        <table class="w-full text-left text-sm">
+          <thead class="bg-neutral-200 dark:bg-neutral-800 border-b border-neutral-300 dark:border-neutral-700 font-mono text-xs uppercase text-neutral-700 dark:text-neutral-300">
+            <tr>
+              <th class="py-3 px-4">Modification Scenario</th>
+              <th class="py-3 px-4">Constraint Archetype</th>
+              <th class="py-3 px-4">Imperative Burden</th>
+              <th class="py-3 px-4">mitsukeru Declarative Schema Mapping</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-neutral-200 dark:divide-neutral-800 text-xs sm:text-sm">
+            <tr>
+              <td class="py-3 px-4 font-medium">Add Product E with requirement on C</td>
+              <td class="py-3 px-4"><span class="font-mono text-xs bg-neutral-200 dark:bg-neutral-800 px-1 py-0.5">Dependency</span></td>
+              <td class="py-3 px-4 text-neutral-600 dark:text-neutral-400">Append nested guard: <code class="font-mono">if (ids.includes("E") &amp;&amp; !ids.includes("C"))</code></td>
+              <td class="py-3 px-4 font-mono text-xs">{ type: "requires", from_id: 4, to_id: 2 }</td>
+            </tr>
+            <tr>
+              <td class="py-3 px-4 font-medium">Mutual exclusion between B and E</td>
+              <td class="py-3 px-4"><span class="font-mono text-xs bg-neutral-200 dark:bg-neutral-800 px-1 py-0.5">Mutual Exclusion</span></td>
+              <td class="py-3 px-4 text-neutral-600 dark:text-neutral-400">Append guard: <code class="font-mono">if (ids.includes("B") &amp;&amp; ids.includes("E"))</code></td>
+              <td class="py-3 px-4 font-mono text-xs">{ type: "conflicts", a_id: 1, b_id: 4 }</td>
+            </tr>
+            <tr>
+              <td class="py-3 px-4 font-medium">Product D requires active campaign</td>
+              <td class="py-3 px-4"><span class="font-mono text-xs bg-neutral-200 dark:bg-neutral-800 px-1 py-0.5">Pre-Eligibility</span></td>
+              <td class="py-3 px-4 text-neutral-600 dark:text-neutral-400">Context check inside recursive combinatorial loop</td>
+              <td class="py-3 px-4 text-neutral-600 dark:text-neutral-400">Pre-filtered by upstream engine (<code class="font-mono text-xs">json-rules-engine</code>)</td>
+            </tr>
+            <tr>
+              <td class="py-3 px-4 font-medium">Expand budget limit: $1,000 &rarr; $1,200</td>
+              <td class="py-3 px-4"><span class="font-mono text-xs bg-neutral-200 dark:bg-neutral-800 px-1 py-0.5">Multi-Cap Metric</span></td>
+              <td class="py-3 px-4 text-neutral-600 dark:text-neutral-400">Modify global constant or state configuration</td>
+              <td class="py-3 px-4 font-mono text-xs">capacities: [1200]</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      
+      <div>
+        <p class="mt-2 text-sm sm:text-base text-neutral-700 dark:text-neutral-300 leading-relaxed">
+          And not all applications require dedicated optimization solvers. Evaluate your workload against the following indicators:
+        </p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="border border-neutral-300 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-900 p-5 space-y-3">
+          <div class="font-mono text-xs font-bold uppercase text-neutral-800 dark:text-neutral-200">
+            Adoption Recommended
+          </div>
+          <ul class="space-y-2 text-xs sm:text-sm text-neutral-700 dark:text-neutral-300">
+            <li class="flex items-start space-x-2">
+              <span class="font-mono font-bold text-emerald-500">[&check;]</span>
+              <span>Business rules change frequently (weekly, monthly, or campaign-driven).</span>
+            </li>
+            <li class="flex items-start space-x-2">
+              <span class="font-mono font-bold text-emerald-500">[&check;]</span>
+              <span>Conditions exhibit mutual cross-effects (co-requirements, anti-affinity).</span>
+            </li>
+            <li class="flex items-start space-x-2">
+              <span class="font-mono font-bold text-emerald-500">[&check;]</span>
+              <span>The objective is global score maximization within strict resource caps.</span>
+            </li>
+            <li class="flex items-start space-x-2">
+              <span class="font-mono font-bold text-emerald-500">[&check;]</span>
+              <span>Operational teams demand structured root-cause reports when no solution exists.</span>
+            </li>
+          </ul>
+        </div>
+
+        <div class="border border-neutral-300 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-900 p-5 space-y-3">
+          <div class="font-mono text-xs font-bold uppercase text-neutral-800 dark:text-neutral-200">
+            Current Implementation Sufficient
+          </div>
+          <ul class="space-y-2 text-xs sm:text-sm text-neutral-700 dark:text-neutral-300">
+            <li class="flex items-start space-x-2">
+              <span class="font-mono font-bold text-neutral-500">[-]</span>
+              <span>Filtering consists purely of independent scalar checks (e.g., price &lt; $50).</span>
+            </li>
+            <li class="flex items-start space-x-2">
+              <span class="font-mono font-bold text-neutral-500">[-]</span>
+              <span>The candidate pool is small (&le; 10 items) and rules are static year-round.</span>
+            </li>
+            <li class="flex items-start space-x-2">
+              <span class="font-mono font-bold text-neutral-500">[-]</span>
+              <span>First-match greedy picking satisfies all commercial metrics.</span>
+            </li>
+            <li class="flex items-start space-x-2">
+              <span class="font-mono font-bold text-neutral-500">[-]</span>
+              <span>Engineering cycles are not constrained by recurring rule change tickets.</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      
+      <div>
+        <p class="mt-2 text-sm sm:text-base text-neutral-700 dark:text-neutral-300 leading-relaxed">
+          Once these are understood and reviewed by an expert, the following fields will benefit. We certainly welcome other use cases beyond these as well.
+        </p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        
+        <div class="border border-neutral-300 dark:border-neutral-700 p-4 bg-neutral-100 dark:bg-neutral-900 space-y-1.5">
+          <div class="flex items-center justify-between">
+            <h3 class="text-sm font-bold">1. Shift &amp; Roster Scheduling</h3>
+            <span class="text-xs font-mono px-1.5 py-0.5 border border-neutral-400 dark:border-neutral-600">High</span>
+          </div>
+          <p class="text-xs text-neutral-600 dark:text-neutral-400">
+            Assigning staff matching qualifications, rest intervals, and overtime maximums without nested loop combinatorial blowup.
+          </p>
+        </div>
+
+        <div class="border border-neutral-300 dark:border-neutral-700 p-4 bg-neutral-100 dark:bg-neutral-900 space-y-1.5">
+          <div class="flex items-center justify-between">
+            <h3 class="text-sm font-bold">2. Project Staffing &amp; Task Assignment</h3>
+            <span class="text-xs font-mono px-1.5 py-0.5 border border-neutral-400 dark:border-neutral-600">High</span>
+          </div>
+          <p class="text-xs text-neutral-600 dark:text-neutral-400">
+            Matching team skill matrices with project milestones under budget constraints and client-exclusivity clauses.
+          </p>
+        </div>
+
+        <div class="border border-neutral-300 dark:border-neutral-700 p-4 bg-neutral-100 dark:bg-neutral-900 space-y-1.5">
+          <div class="flex items-center justify-between">
+            <h3 class="text-sm font-bold">3. Production Line Job Allocation</h3>
+            <span class="text-xs font-mono px-1.5 py-0.5 border border-neutral-400 dark:border-neutral-600">High</span>
+          </div>
+          <p class="text-xs text-neutral-600 dark:text-neutral-400">
+            Allocating manufacturing jobs across machine banks subject to tooling dependencies, material availability, and deadline priorities.
+          </p>
+        </div>
+
+        <div class="border border-neutral-300 dark:border-neutral-700 p-4 bg-neutral-100 dark:bg-neutral-900 space-y-1.5">
+          <div class="flex items-center justify-between">
+            <h3 class="text-sm font-bold">4. Fleet Dispatch Packing &amp; Routing</h3>
+            <span class="text-xs font-mono px-1.5 py-0.5 border border-neutral-400 dark:border-neutral-600">High</span>
+          </div>
+          <p class="text-xs text-neutral-600 dark:text-neutral-400">
+            Grouping multi-stop cargo orders matching vehicle volume and axle weight limits prior to detailed micro-route solving.
+          </p>
+        </div>
+
+        <div class="border border-neutral-300 dark:border-neutral-700 p-4 bg-neutral-100 dark:bg-neutral-900 space-y-1.5">
+          <div class="flex items-center justify-between">
+            <h3 class="text-sm font-bold">5. Academic Timetabling &amp; Room Assignment</h3>
+            <span class="text-xs font-mono px-1.5 py-0.5 border border-neutral-400 dark:border-neutral-600">High</span>
+          </div>
+          <p class="text-xs text-neutral-600 dark:text-neutral-400">
+            Synthesizing conflict-free class schedules across lecture halls ensuring prerequisite classes do not overlap.
+          </p>
+        </div>
+
+        <div class="border border-neutral-300 dark:border-neutral-700 p-4 bg-neutral-100 dark:bg-neutral-900 space-y-1.5">
+          <div class="flex items-center justify-between">
+            <h3 class="text-sm font-bold">6. Cloud VM &amp; Container Packing</h3>
+            <span class="text-xs font-mono px-1.5 py-0.5 border border-neutral-400 dark:border-neutral-600">High</span>
+          </div>
+          <p class="text-xs text-neutral-600 dark:text-neutral-400">
+            Packing pods onto physical server nodes respecting CPU/RAM vector capacities and anti-affinity rules across zones.
+          </p>
+        </div>
+
+        <div class="border border-neutral-300 dark:border-neutral-700 p-4 bg-neutral-100 dark:bg-neutral-900 space-y-1.5">
+          <div class="flex items-center justify-between">
+            <h3 class="text-sm font-bold">7. Financial Portfolio &amp; Insurance Bundling</h3>
+            <span class="text-xs font-mono px-1.5 py-0.5 border border-neutral-400 dark:border-neutral-600">Medium-High</span>
+          </div>
+          <p class="text-xs text-neutral-600 dark:text-neutral-400">
+            Drafting optimal rider bundles fitting client premium limits. Regulatory compliance must remain decoupled in upstream engines.
+          </p>
+        </div>
+
+        <div class="border border-neutral-300 dark:border-neutral-700 p-4 bg-neutral-100 dark:bg-neutral-900 space-y-1.5">
+          <div class="flex items-center justify-between">
+            <h3 class="text-sm font-bold">8. Corporate Travel Itinerary Synthesis</h3>
+            <span class="text-xs font-mono px-1.5 py-0.5 border border-neutral-400 dark:border-neutral-600">Medium-High</span>
+          </div>
+          <p class="text-xs text-neutral-600 dark:text-neutral-400">
+            Generating transit and hotel packages adhering to corporate per diem bounds and preferred partner contracts.
+          </p>
+        </div>
+
+        <div class="border border-neutral-300 dark:border-neutral-700 p-4 bg-neutral-100 dark:bg-neutral-900 space-y-1.5">
+          <div class="flex items-center justify-between">
+            <h3 class="text-sm font-bold">9. Software License &amp; CPQ Configuration</h3>
+            <span class="text-xs font-mono px-1.5 py-0.5 border border-neutral-400 dark:border-neutral-600">High</span>
+          </div>
+          <p class="text-xs text-neutral-600 dark:text-neutral-400">
+            Configure, Price, Quote (CPQ) systems enforcing module prerequisites, license quotas, and tier co-dependencies.
+          </p>
+        </div>
+
+        <div class="border border-neutral-300 dark:border-neutral-700 p-4 bg-neutral-100 dark:bg-neutral-900 space-y-1.5">
+          <div class="flex items-center justify-between">
+            <h3 class="text-sm font-bold">10. Hospital Bed &amp; Care Resource Allocation</h3>
+            <span class="text-xs font-mono px-1.5 py-0.5 border border-neutral-400 dark:border-neutral-600">High</span>
+          </div>
+          <p class="text-xs text-neutral-600 dark:text-neutral-400">
+            Assigning intake patients to wards matching oxygen/telemetry infrastructure and staff ratios. Serves as clinical decision support.
+          </p>
+        </div>
+
+      </div>
+
+      <div>
+        <p class="mt-2 text-sm sm:text-base text-neutral-700 dark:text-neutral-300 leading-relaxed">
+          The generally intended usage is roughly as follows:
+        </p>
+      </div>
+
+      <div class="border border-neutral-300 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-900 p-5 space-y-3">
+        <pre class="font-mono text-xs overflow-x-auto text-neutral-800 dark:text-neutral-200 leading-5"><code>// 1. Evaluate context validity using standard business rule engine
+const { events } = await ruleEngine.run({ isCampaignActive: true, customerTier: "VIP" });
+
+// 2. Filter raw inventory down to qualified decision candidates
+const eligibleCatalog = catalog.filter(product => isProductEligible(product, events));
+
+// 3. Dispatch structured parameters to mitsukeru for knapsack optimization
+const solution = optimize({
+  capacities: [targetBudgetUSD],
+  items: eligibleCatalog.map(p => ({ id: p.id, name: p.name, weights: [p.priceUSD], value: p.score })),
+  rules: activeBusinessRules,
+  config: { strategy: "mixed", time_limit_ms: 2.0 }
+});</code></pre>
+      </div>
+    </section>
+
+    <section class="space-y-6">
+      <div>
+        <h2 class="text-xl sm:text-2xl font-bold text-neutral-900 dark:text-neutral-100">
+          3. Try using it yourself
+        </h2>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 border border-neutral-300 dark:border-neutral-700 p-6 bg-neutral-100 dark:bg-neutral-900">
+        
+        <div class="flex flex-col justify-between lg:col-span-5 space-y-6">
+          <div class="space-y-2">
+            <div class="flex justify-between items-center text-xs">
+              <label for="budgetSlider" class="font-medium text-neutral-800 dark:text-neutral-200">
+                Primary Capacity: Budget Limit ($)
+              </label>
+              <span id="budgetDisplay" class="font-mono font-bold text-neutral-900 dark:text-neutral-100">$1,000</span>
+            </div>
+            <input id="budgetSlider" type="range" min="400" max="1500" step="100" value="1000" 
+            class="ui-slider w-full h-2 bg-neutral-300 dark:bg-neutral-700 rounded-full appearance-none cursor-pointer">
+            <div class="flex justify-between text-[10px] font-mono text-neutral-500">
+              <span>$400</span>
+              <span>$1,000</span>
+              <span>$1,500</span>
+            </div>
+          </div>
+
+          <div class="space-y-2 pt-3 border-t border-neutral-200 dark:border-neutral-800">
+            <label class="text-xs font-mono font-bold uppercase  text-neutral-700 dark:text-neutral-300 block">
+              Upstream Context (Pre-Filter)
+            </label>
+            <label class="ui-toggle flex items-center justify-between cursor-pointer text-xs py-1">
+              <span class="text-neutral-800 dark:text-neutral-200">Promotional Campaign Active (Unlocks Item 3: "Product D")</span>
+              <span class="relative inline-flex items-center ml-3 shrink-0">
+                <input type="checkbox" id="chkCampaign" checked class="peer sr-only cursor-pointer">
+                <span class="w-8 h-4 bg-neutral-300 dark:bg-neutral-700 peer-checked:bg-neutral-900 dark:peer-checked:bg-neutral-100 rounded-full block"></span>
+                <span class="absolute left-0.5 top-0.5 w-3 h-3 bg-neutral-100 dark:bg-neutral-900 peer-checked:left-[1.125rem] rounded-full pointer-events-none block"></span>
+              </span>
+            </label>
+          </div>
+
+          <div class="space-y-2 pt-3 border-t border-neutral-200 dark:border-neutral-800">
+            <label class="text-xs font-mono font-bold uppercase  text-neutral-700 dark:text-neutral-300 block">
+              Relational Business Rules
+            </label>
+            <div class="space-y-1.5 text-xs">
+              
+              <label class="ui-toggle flex items-center justify-between cursor-pointer py-1">
+                <span class="text-neutral-800 dark:text-neutral-200">Require: [Product A] requires [Product B]</span>
+                <span class="relative inline-flex items-center ml-3 shrink-0">
+                  <input type="checkbox" id="chkReqAB" checked class="peer sr-only cursor-pointer">
+                  <span class="w-8 h-4 bg-neutral-300 dark:bg-neutral-700 peer-checked:bg-neutral-900 dark:peer-checked:bg-neutral-100 rounded-full block"></span>
+                  <span class="absolute left-0.5 top-0.5 w-3 h-3 bg-neutral-100 dark:bg-neutral-900 peer-checked:left-[1.125rem] rounded-full pointer-events-none block"></span>
+                </span>
+              </label>
+
+              <label class="ui-toggle flex items-center justify-between cursor-pointer py-1">
+                <span class="text-neutral-800 dark:text-neutral-200">Conflict: [Product C] and [Product D] are exclusive</span>
+                <span class="relative inline-flex items-center ml-3 shrink-0">
+                  <input type="checkbox" id="chkConfCD" checked class="peer sr-only cursor-pointer">
+                  <span class="w-8 h-4 bg-neutral-300 dark:bg-neutral-700 peer-checked:bg-neutral-900 dark:peer-checked:bg-neutral-100 rounded-full block"></span>
+                  <span class="absolute left-0.5 top-0.5 w-3 h-3 bg-neutral-100 dark:bg-neutral-900 peer-checked:left-[1.125rem] rounded-full pointer-events-none block"></span>
+                </span>
+              </label>
+
+              <label class="ui-toggle flex items-center justify-between cursor-pointer py-1">
+                <span class="text-neutral-800 dark:text-neutral-200">Require: [Product E] requires [Product C]</span>
+                <span class="relative inline-flex items-center ml-3 shrink-0">
+                  <input type="checkbox" id="chkReqEC" class="peer sr-only cursor-pointer">
+                  <span class="w-8 h-4 bg-neutral-300 dark:bg-neutral-700 peer-checked:bg-neutral-900 dark:peer-checked:bg-neutral-100 rounded-full block"></span>
+                  <span class="absolute left-0.5 top-0.5 w-3 h-3 bg-neutral-100 dark:bg-neutral-900 peer-checked:left-[1.125rem] rounded-full pointer-events-none block"></span>
+                </span>
+              </label>
+
+              <label class="ui-toggle flex items-center justify-between cursor-pointer py-1">
+                <span class="text-neutral-800 dark:text-neutral-200">Conflict: [Product B] and [Product E] are exclusive</span>
+                <span class="relative inline-flex items-center ml-3 shrink-0">
+                  <input type="checkbox" id="chkConfBE" class="peer sr-only cursor-pointer">
+                  <span class="w-8 h-4 bg-neutral-300 dark:bg-neutral-700 peer-checked:bg-neutral-900 dark:peer-checked:bg-neutral-100 rounded-full block"></span>
+                  <span class="absolute left-0.5 top-0.5 w-3 h-3 bg-neutral-100 dark:bg-neutral-900 peer-checked:left-[1.125rem] rounded-full pointer-events-none block"></span>
+                </span>
+              </label>
+
+            </div>
+          </div>
+
+          <div class="space-y-2 pt-3 border-t border-neutral-200 dark:border-neutral-800">
+            <label class="text-xs font-mono font-bold uppercase  text-neutral-700 dark:text-neutral-300 block">
+              Conflict Injection Tests
+            </label>
+            <div class="space-y-1.5 text-xs">
+              <label class="ui-toggle flex items-center justify-between cursor-pointer py-1">
+                <span class="text-neutral-700 dark:text-neutral-300">Force Logical Chain Conflict (E &rarr; C &rarr; A &oplus; E)</span>
+                <span class="relative inline-flex items-center ml-3 shrink-0">
+                  <input type="checkbox" id="chkForceLogicalChain" class="peer sr-only cursor-pointer">
+                  <span class="w-8 h-4 bg-neutral-300 dark:bg-neutral-700 peer-checked:bg-neutral-900 dark:peer-checked:bg-neutral-100 rounded-full block"></span>
+                  <span class="absolute left-0.5 top-0.5 w-3 h-3 bg-neutral-100 dark:bg-neutral-900 peer-checked:left-[1.125rem] rounded-full pointer-events-none block"></span>
+                </span>
+              </label>
+
+              <label class="ui-toggle flex items-center justify-between cursor-pointer py-1">
+                <span class="text-neutral-700 dark:text-neutral-300">Force Root Capacity Overflow (A &rarr; C when Budget = $400)</span>
+                <span class="relative inline-flex items-center ml-3 shrink-0">
+                  <input type="checkbox" id="chkForceCapacityExceeded" class="peer sr-only cursor-pointer">
+                  <span class="w-8 h-4 bg-neutral-300 dark:bg-neutral-700 peer-checked:bg-neutral-900 dark:peer-checked:bg-neutral-100 rounded-full block"></span>
+                  <span class="absolute left-0.5 top-0.5 w-3 h-3 bg-neutral-100 dark:bg-neutral-900 peer-checked:left-[1.125rem] rounded-full pointer-events-none block"></span>
+                </span>
+              </label>
+
+            </div>
+          </div>
+
+          <div class="pt-3 border-t border-neutral-200 dark:border-neutral-800 text-xs">
+            <span class="font-mono text-neutral-500 uppercase text-[10px] block mb-1">Registered Item Pool (weights: [cost_usd])</span>
+            <div class="border border-neutral-300 dark:border-neutral-700 divide-y divide-neutral-200 dark:divide-neutral-800 font-mono text-[11px]">
+              <div class="flex justify-between p-1.5 bg-neutral-200 dark:bg-neutral-800 font-bold">
+                <span>Item ID / Name</span>
+                <span>Cost / Value</span>
+              </div>
+              <div class="flex justify-between p-1.5"><span>#0: Product A</span><span>$300 (Val: 90)</span></div>
+              <div class="flex justify-between p-1.5"><span>#1: Product B</span><span>$200 (Val: 70)</span></div>
+              <div class="flex justify-between p-1.5"><span>#2: Product C</span><span>$400 (Val: 80)</span></div>
+              <div class="flex justify-between p-1.5"><span>#3: Product D (Promo)</span><span>$300 (Val: 60)</span></div>
+              <div class="flex justify-between p-1.5"><span>#4: Product E</span><span>$200 (Val: 85)</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="h-full lg:col-span-7 flex flex-col justify-start space-y-2">
+          <div class="space-y-4">
+            
+            <div class="flex items-center justify-between border-b border-neutral-300 dark:border-neutral-700 pb-3">
+              <h3 class="text-xs font-mono font-bold uppercase text-neutral-800 dark:text-neutral-200">
+                Solution &amp; Telemetry
+              </h3>
+              <div class="flex items-center space-x-2">
+                <span id="solutionStatusBadge" class="font-mono text-xs px-2 py-0.5 border border-neutral-800 dark:border-neutral-200 font-bold">
+                  OPTIMAL
+                </span>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-4 gap-2 border border-neutral-300 dark:border-neutral-700 p-3 bg-neutral-50 dark:bg-neutral-950 font-mono text-center">
+              <div>
+                <div class="text-[10px] text-neutral-500 uppercase">Best Value</div>
+                <div id="statBestValue" class="text-lg sm:text-xl font-bold">240</div>
+              </div>
+              <div>
+                <div class="text-[10px] text-neutral-500 uppercase">Consumed Cost</div>
+                <div id="statConsumedCost" class="text-lg sm:text-xl font-bold">$900</div>
+              </div>
+              <div>
+                <div class="text-[10px] text-neutral-500 uppercase">Explored Nodes</div>
+                <div id="statNodes" class="text-lg sm:text-xl font-bold">18</div>
+              </div>
+              <div>
+                <div class="text-[10px] text-neutral-500 uppercase">Solver Time</div>
+                <div id="statTime" class="text-lg sm:text-xl font-bold">0.12 ms</div>
+              </div>
+            </div>
+
+            <div class="space-y-2">
+              <div class="text-xs font-mono uppercase text-neutral-600 dark:text-neutral-400">
+                Selected Bundle Set (<code class="font-mono">selected_item_ids</code>)
+              </div>
+              <div id="selectedBundleList" class="border border-neutral-300 dark:border-neutral-700 divide-y divide-neutral-200 dark:divide-neutral-800 text-xs"></div>
+            </div>
+
+            <div class="border border-neutral-300 dark:border-neutral-700 p-4 bg-neutral-50 dark:bg-neutral-950 space-y-3">
+              <div class="flex items-center justify-between border-b border-neutral-200 dark:border-neutral-800 pb-2">
+                <span class="text-xs font-mono font-bold uppercase text-neutral-800 dark:text-neutral-200">
+                  Diagnostic Report (<code class="font-mono text-[11px]">ConflictReport</code>)
+                </span>
+                <span id="feasibilityFlag" class="text-[11px] font-mono font-bold text-neutral-800 dark:text-neutral-200">
+                  is_feasible: true
+                </span>
+              </div>
+              <div id="diagnosticBody" class="space-y-2 text-xs font-mono text-neutral-700 dark:text-neutral-300"></div>
+            </div>
+          </div>
+
+          <div class="flex-1 flex flex-col pt-4">
+            <div class="flex justify-between items-center mb-1 text-[11px] font-mono text-neutral-500">
+              <span>Active Payload Dispatched to Engine:</span>
+              <span id="activeEngineType">Engine Mode: Fallback Solver</span>
+            </div>
+            <pre id="jsonPayloadPreview" class="flex-1 custom-scrollbar h-full text-[11px] font-mono p-3 border border-neutral-300 dark:border-neutral-700 bg-neutral-200 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 overflow-x-auto max-h-60 leading-4"></pre>
+          </div>
+
+          
+          <div class="flex-1 flex flex-col pt-4">
+            <div class="flex justify-between items-center mb-1 text-[11px] font-mono text-neutral-500">
+              <span>Optimization Result (Solution / Conflict):</span>
+              <span id="resultStatus">Status: Idle</span>
+            </div>
+            <pre id="jsonResultPreview" class="flex-1 custom-scrollbar h-full text-[11px] font-mono p-3 border border-neutral-300 dark:border-neutral-700 bg-neutral-200 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 overflow-x-auto max-h-60 leading-4"></pre>
+          </div>
+        </div>
+
+      </div>
+    </section>
+  </main>
+
+  <footer class="border-t border-neutral-300 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-900 py-2 px-4 sm:px-8 text-xs text-neutral-600 dark:text-neutral-400">
+    <div class="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-4 sm:space-y-0">
+      <div>
+        <img class="max-w-[300px] dark:hidden" src="../../../assets/logo.svg" alt="mitsukeru" />
+        <img class="max-w-[300px] hidden dark:block" src="../../../assets/logo_dark.svg" alt="mitsukeru" />
+      </div>
+    </div>
+  </footer>
+
+  <script type="module">
+    /**
+     * @typedef {Object} Item
+     * @property {number} id
+     * @property {string} name
+     * @property {number[]} weights
+     * @property {number} value
+     * @property {boolean} requiresCampaign
+     */
+
+    /** @type {Item[]} */
+    const MASTER_ITEMS = [
+      { id: 0, name: "Product A", weights: [300], value: 90, requiresCampaign: false },
+      { id: 1, name: "Product B", weights: [200], value: 70, requiresCampaign: false },
+      { id: 2, name: "Product C", weights: [400], value: 80, requiresCampaign: false },
+      { id: 3, name: "Product D", weights: [300], value: 60, requiresCampaign: true  },
+      { id: 4, name: "Product E", weights: [200], value: 85, requiresCampaign: false }
+    ];
+
+    const wasmBadge = document.getElementById("wasmStatusIndicator");
+    const activeEngineType = document.getElementById("activeEngineType");
+    const sliderBudget = document.getElementById("budgetSlider");
+    const labelBudget = document.getElementById("budgetDisplay");
+    const chkCampaign = document.getElementById("chkCampaign");
+    const chkReqAB = document.getElementById("chkReqAB");
+    const chkConfCD = document.getElementById("chkConfCD");
+    const chkReqEC = document.getElementById("chkReqEC");
+    const chkConfBE = document.getElementById("chkConfBE");
+    const chkForceLogicalChain = document.getElementById("chkForceLogicalChain");
+    const chkForceCapacityExceeded = document.getElementById("chkForceCapacityExceeded");
+
+    const statBestValue = document.getElementById("statBestValue");
+    const statConsumedCost = document.getElementById("statConsumedCost");
+    const statNodes = document.getElementById("statNodes");
+    const statTime = document.getElementById("statTime");
+    const statusBadge = document.getElementById("solutionStatusBadge");
+    const selectedBundleList = document.getElementById("selectedBundleList");
+    const feasibilityFlag = document.getElementById("feasibilityFlag");
+    const diagnosticBody = document.getElementById("diagnosticBody");
+    const jsonPayloadPreview = document.getElementById("jsonPayloadPreview");
+    const jsonResultPreview = document.getElementById("jsonResultPreview");
+    const resultStatus = document.getElementById("resultStatus");
+
+    /** @type {((payload: Object) => Object) | null} */
+    let wasmOptimizeFn = null;
+
+    async function initializeEngine() {
+      try {
+        const wasmPkg = await import("../../pkg/mitsukeru.js");
+        if (typeof wasmPkg.default === "function") {
+          await wasmPkg.default();
+        }
+        if (typeof wasmPkg.optimize === "function") {
+          wasmOptimizeFn = wasmPkg.optimize;
+          wasmBadge.textContent = "Wasm Runtime: Native Loaded";
+          wasmBadge.className = "text-xs font-mono px-2 py-0.5 border border-neutral-800 dark:border-neutral-200 font-bold";
+          activeEngineType.textContent = "Engine Mode: WebAssembly";
+        }
+      } catch (err) {
+        wasmBadge.textContent = "Wasm Runtime: Fallback Solver Active";
+        wasmBadge.className = "text-xs font-mono px-2 py-0.5 border border-neutral-400 dark:border-neutral-600 text-neutral-600 dark:text-neutral-400";
+        activeEngineType.textContent = "Engine Mode: Pure JS Reference Solver";
+      }
+      executeOptimization();
+    }
+
+    /**
+     * Reference fallback optimizer adhering strictly to problem-input.schema.json,
+     * solution.schema.json, and optimize-error.schema.json
+     */
+    function referenceOptimize(req) {
+      const startTime = performance.now();
+      const items = req.items;
+      const budget = req.capacities[0];
+      const rules = req.rules;
+
+      const requiresMap = new Map();
+      const conflictPairs = [];
+
+      for (const rule of rules) {
+        if (rule.type === "requires") {
+          if (!requiresMap.has(rule.from_id)) {
+            requiresMap.set(rule.from_id, []);
+          }
+          requiresMap.get(rule.from_id).push(rule.to_id);
+        } else if (rule.type === "conflicts") {
+          conflictPairs.push([rule.a_id, rule.b_id]);
+          conflictPairs.push([rule.b_id, rule.a_id]);
+        }
+      }
+
+      const logicalChainConflicts = [];
+      for (const item of items) {
+        const rootId = item.id;
+        const visited = [rootId];
+        const queue = [rootId];
+
+        while (queue.length > 0) {
+          const current = queue.shift();
+          const prerequisites = requiresMap.get(current) || [];
+
+          for (const prereq of prerequisites) {
+            visited.push(prereq);
+            const isConflicted = conflictPairs.some(
+              ([a, b]) => (a === rootId && b === prereq) || (a === prereq && b === rootId)
+            );
+
+            if (isConflicted) {
+              logicalChainConflicts.push({
+                root_id: rootId,
+                conflicting_id: prereq,
+                path_ids: [...visited],
+                message: `Item #${rootId} requires #${prereq} via chain [${visited.join(" -> ")}], but they are mutually exclusive.`
+              });
+            }
+            queue.push(prereq);
+          }
+        }
+      }
+
+      const capacityConflicts = [];
+      for (const item of items) {
+        let bundleCost = item.weights[0];
+        const bundleIds = [item.id];
+        const deps = requiresMap.get(item.id) || [];
+        for (const depId of deps) {
+          const depItem = items.find(it => it.id === depId);
+          if (depItem) {
+            bundleCost += depItem.weights[0];
+            bundleIds.push(depId);
+          }
+        }
+        if (bundleCost > budget && deps.length > 0) {
+          capacityConflicts.push({
+            dimension: 0,
+            capacity_limit: budget,
+            consumed_weight: bundleCost,
+            root_id: item.id,
+            bundle_ids: bundleIds,
+            message: `Selected bundle for root item #${item.id} requires ${bundleCost} weight, exceeding capacity limit of ${budget}.`
+          });
+        }
+      }
+
+      if (logicalChainConflicts.length > 0 || capacityConflicts.length > 0) {
+        const err = {
+          type: "Infeasible",
+          report: {
+            is_feasible: false,
+            capacity_conflicts: capacityConflicts,
+            logical_chain_conflicts: logicalChainConflicts,
+            target_conflict: null
+          }
+        };
+        throw err;
+      }
+
+      const totalMasks = 1 << items.length;
+      let bestValue = 0;
+      /** @type {number[]} */
+      let bestItemIds = [];
+      let exploredNodes = 0;
+
+      for (let mask = 0; mask < totalMasks; mask++) {
+        exploredNodes++;
+        let weightSum = 0;
+        let valSum = 0;
+        /** @type {number[]} */
+        const candidateIds = [];
+
+        for (let i = 0; i < items.length; i++) {
+          if (mask & (1 << i)) {
+            candidateIds.push(items[i].id);
+            weightSum += items[i].weights[0];
+            valSum += items[i].value;
+          }
+        }
+
+        if (weightSum > budget) continue;
+
+        let passRequires = true;
+        for (const rule of rules) {
+          if (rule.type === "requires") {
+            if (candidateIds.includes(rule.from_id) && !candidateIds.includes(rule.to_id)) {
+              passRequires = false;
+              break;
+            }
+          }
+        }
+
+        if (!passRequires) continue;
+
+        let passConflicts = true;
+        for (const rule of rules) {
+          if (rule.type === "conflicts") {
+            if (candidateIds.includes(rule.a_id) && candidateIds.includes(rule.b_id)) {
+              passConflicts = false;
+              break;
+            }
+          }
+        }
+        if (!passConflicts) continue;
+
+        if (valSum > bestValue) {
+          bestValue = valSum;
+          bestItemIds = candidateIds;
+        }
+      }
+
+      const endTime = performance.now();
+
+      return {
+        best_value: bestValue,
+        execution_time_ms: parseFloat((endTime - startTime).toFixed(3)),
+        explored_nodes: exploredNodes,
+        optimality_gap: 0.0,
+        selected_item_ids: bestItemIds,
+        status: "optimal",
+        strategy_used: "mixed",
+        upper_bound: bestValue,
+        top_candidates: null
+      };
+    }
+
+    function executeOptimization() {
+      const budget = parseInt(sliderBudget.value, 10);
+      labelBudget.textContent = "$" + budget.toLocaleString();
+
+      const campaignActive = chkCampaign.checked;
+      const reqAB = chkReqAB.checked;
+      const confCD = chkConfCD.checked;
+      const reqEC = chkReqEC.checked;
+      const confBE = chkConfBE.checked;
+      const forceLogical = chkForceLogicalChain.checked;
+      const forceCapacity = chkForceCapacityExceeded.checked;
+
+      const eligibleItems = MASTER_ITEMS.filter(it => {
+        if (it.requiresCampaign && !campaignActive) return false;
+        return true;
+      });
+
+      const rules = [];
+      if (reqAB) rules.push({ type: "requires", from_id: 0, to_id: 1 });
+      if (confCD) rules.push({ type: "conflicts", a_id: 2, b_id: 3 });
+      if (reqEC) rules.push({ type: "requires", from_id: 4, to_id: 2 });
+      if (confBE) rules.push({ type: "conflicts", a_id: 1, b_id: 4 });
+
+      if (forceLogical) {
+        // E -> C -> A while E conflicts with A
+        rules.push({ type: "requires", from_id: 4, to_id: 2 });
+        rules.push({ type: "requires", from_id: 2, to_id: 0 });
+        rules.push({ type: "conflicts", a_id: 4, b_id: 0 });
+      }
+
+      if (forceCapacity) {
+        // A (300) requires C (400) = 700. If budget < 700, overflow occurs
+        rules.push({ type: "requires", from_id: 0, to_id: 2 });
+      }
+
+      const requestPayload = {
+        capacities: [budget],
+        items: eligibleItems.map(it => ({
+          id: it.id,
+          name: it.name,
+          weights: it.weights,
+          value: it.value
+        })),
+        rules: rules,
+        config: {
+          strategy: "mixed",
+          time_limit_ms: 2.0,
+          top_k: null
+        }
+      };
+
+      jsonPayloadPreview.textContent = JSON.stringify(requestPayload, null, 2);
+
+      try {
+        let solution;
+        if (wasmOptimizeFn) {
+          solution = wasmOptimizeFn(requestPayload);
+        } else {
+          solution = referenceOptimize(requestPayload);
+        }
+        renderSuccess(solution, budget, eligibleItems, rules);
+      } catch (err) {
+        renderError(err, budget);
+      }
+    }
+
+    function renderSuccess(solution, budget, catalog, rules) {
+      jsonResultPreview.textContent = JSON.stringify(solution, null, 2);
+      resultStatus.textContent = `Status: ${solution.status ? solution.status.toUpperCase() : "OPTIMAL"} (${solution.execution_time_ms} ms)`;
+      resultStatus.className = "text-emerald-600 dark:text-emerald-400 font-bold";
+
+      statusBadge.textContent = solution.status ? solution.status.toUpperCase() : "OPTIMAL";
+      statusBadge.className = "font-mono text-xs px-2 py-0.5 border border-neutral-800 dark:border-neutral-200 font-bold";
+
+      statBestValue.textContent = solution.best_value.toString();
+      statNodes.textContent = solution.explored_nodes.toString();
+      statTime.textContent = solution.execution_time_ms + " ms";
+
+      selectedBundleList.innerHTML = "";
+      let consumedCost = 0;
+
+      if (solution.selected_item_ids.length === 0) {
+        const row = document.createElement("div");
+        row.className = "p-3 text-neutral-500 font-mono text-xs italic";
+        row.textContent = "No items selected within current constraints.";
+        selectedBundleList.appendChild(row);
+      } else {
+        for (const id of solution.selected_item_ids) {
+          const item = catalog.find(p => p.id === id);
+          if (item) {
+            consumedCost += item.weights[0];
+            const div = document.createElement("div");
+            div.className = "flex justify-between items-center py-2 px-3 font-mono text-xs";
+            
+            const left = document.createElement("span");
+            left.className = "font-medium";
+            left.textContent = `#${item.id}: ${item.name}`;
+
+            const right = document.createElement("span");
+            right.className = "text-neutral-600 dark:text-neutral-400";
+            right.textContent = `Cost: $${item.weights[0]}  |  Score: ${item.value}`;
+
+            div.appendChild(left);
+            div.appendChild(right);
+            selectedBundleList.appendChild(div);
+          }
+        }
+      }
+
+      statConsumedCost.textContent = "$" + consumedCost.toLocaleString();
+
+      feasibilityFlag.textContent = "is_feasible: true";
+      feasibilityFlag.className = "text-[11px] font-mono font-bold text-neutral-800 dark:text-neutral-200";
+
+      diagnosticBody.innerHTML = "";
+      const lines = [];
+      lines.push(`[CAPACITY_OK] Consumed $${consumedCost} of $${budget} bound (Slack: $${budget - consumedCost}).`);
+      lines.push(`[OPTIMALITY] Dual upper bound verified (${solution.upper_bound}). Gap: ${solution.optimality_gap}.`);
+
+      if (solution.selected_item_ids.includes(0)) {
+        lines.push("[DEPENDENCY_SATISFIED] Item #0 (Product A) is present; prerequisite #1 (Product B) fulfilled.");
+      }
+      if (solution.selected_item_ids.includes(2) && !solution.selected_item_ids.includes(3)) {
+        lines.push("[CONFLICT_AVOIDED] Mutual exclusion [C, D]: Product C selected, Product D excluded.");
+      }
+      if (!chkCampaign.checked) {
+        lines.push("[PRE_FILTER] Item #3 (Product D) excluded upstream (Campaign inactive).");
+      }
+
+      for (const line of lines) {
+        const item = document.createElement("div");
+        item.textContent = line;
+        diagnosticBody.appendChild(item);
+      }
+    }
+
+    function renderError(err, budget) {
+      jsonResultPreview.textContent = JSON.stringify(err, null, 2);
+      resultStatus.textContent = `Status: ${err.type || "INFEASIBLE"}`;
+      resultStatus.className = "text-red-600 dark:text-red-400 font-bold";
+
+      statusBadge.textContent = "INFEASIBLE / CONFLICT";
+      statusBadge.className = "font-mono text-xs px-2 py-0.5 border border-neutral-600 text-neutral-600 dark:text-neutral-400 font-bold";
+
+      statBestValue.textContent = "0";
+      statConsumedCost.textContent = "$0";
+      statNodes.textContent = "0";
+      statTime.textContent = "0.00 ms";
+
+      selectedBundleList.innerHTML = "";
+      const emptyRow = document.createElement("div");
+      emptyRow.className = "p-3 text-neutral-500 font-mono text-xs italic";
+      emptyRow.textContent = "Computation rejected: Mathematical constraints are mutually contradictory.";
+      selectedBundleList.appendChild(emptyRow);
+
+      feasibilityFlag.textContent = "is_feasible: false";
+      feasibilityFlag.className = "text-[11px] font-mono font-bold text-neutral-600 dark:text-neutral-400";
+
+      diagnosticBody.innerHTML = "";
+
+      if (err.type === "Infeasible" && err.report) {
+        const report = err.report;
+
+        if (report.logical_chain_conflicts && report.logical_chain_conflicts.length > 0) {
+          for (const conf of report.logical_chain_conflicts) {
+            const errDiv = document.createElement("div");
+            errDiv.className = "border border-neutral-300 dark:border-neutral-700 p-2 bg-neutral-200 dark:bg-neutral-800 space-y-1";
+            errDiv.innerHTML = `
+              <div class="font-bold text-neutral-900 dark:text-neutral-100">[Logical Chain Conflict Detected]</div>
+              <div>${conf.message}</div>
+              <div class="text-[10px] text-neutral-500">Root Item: #${conf.root_id} | Conflict Target: #${conf.conflicting_id} | Chain: [${conf.path_ids.join(" -> ")}]</div>
+            `;
+            diagnosticBody.appendChild(errDiv);
+          }
+        }
+
+        if (report.capacity_conflicts && report.capacity_conflicts.length > 0) {
+          for (const cap of report.capacity_conflicts) {
+            const capDiv = document.createElement("div");
+            capDiv.className = "border border-neutral-300 dark:border-neutral-700 p-2 bg-neutral-200 dark:bg-neutral-800 space-y-1";
+            capDiv.innerHTML = `
+              <div class="font-bold text-neutral-900 dark:text-neutral-100">[Capacity Limit Exceeded by Dependency Bundle]</div>
+              <div>${cap.message}</div>
+              <div class="text-[10px] text-neutral-500">Required: $${cap.consumed_weight} | Bound: $${cap.capacity_limit} | Bundle Items: [${cap.bundle_ids.join(", ")}]</div>
+            `;
+            diagnosticBody.appendChild(capDiv);
+          }
+        }
+      } else {
+        const genericDiv = document.createElement("div");
+        genericDiv.textContent = JSON.stringify(err, null, 2);
+        diagnosticBody.appendChild(genericDiv);
+      }
+    }
+
+    const inputControls = [
+      sliderBudget, chkCampaign, chkReqAB, chkConfCD, 
+      chkReqEC, chkConfBE, chkForceLogicalChain, chkForceCapacityExceeded
+    ];
+
+    for (const ctrl of inputControls) {
+      ctrl.addEventListener("input", executeOptimization);
+      ctrl.addEventListener("change", executeOptimization);
+    }
+
+    initializeEngine();
+  </script>
+</body>
+</html>

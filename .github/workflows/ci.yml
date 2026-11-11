@@ -1,0 +1,116 @@
+name: CI
+
+on:
+  push:
+    branches: [ "main", "refactor/*" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_MIN_STACK: 8388608
+
+jobs:
+  check-and-lint:
+    name: Code Formatting & Strict Linting
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Check code formatting
+        run: cargo fmt --all --check
+
+      - name: Run Clippy (Pedantic checks across workspace)
+        run: cargo clippy --workspace --all-targets -- -D warnings -W clippy::pedantic
+
+  check-embedded:
+    name: Embedded (no_std) Verification
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust stable with Cortex-M target
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: thumbv7em-none-eabi
+          components: clippy
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Verify no_std compilation (mitsukeru)
+        run: cargo check -p mitsukeru --target thumbv7em-none-eabi --no-default-features
+
+      - name: Run no_std Clippy
+        run: cargo clippy -p mitsukeru --target thumbv7em-none-eabi --no-default-features -- -D warnings -W clippy::pedantic
+
+  test-native:
+    name: Native Tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Run unit & integration tests (Debug)
+        run: cargo test --workspace
+
+      - name: Run all tests (Release Mode)
+        run: cargo test --workspace --release
+
+  build-wasm:
+    name: WebAssembly & Package Verification
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Install wasm-pack
+        uses: jetli/wasm-pack-action@v0.4.0
+        with:
+          version: 'latest'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Build WebAssembly (bundler target)
+        run: wasm-pack build crates/mitsukeru-wasm --release --target bundler
+
+      - name: Verify npm package contents
+        run: |
+          cd crates/mitsukeru-wasm/pkg
+          npm pack --dry-run
+
+      - name: Verify Cargo packaging (mitsukeru dry-run)
+        run: cargo package -p mitsukeru --no-verify --allow-dirty

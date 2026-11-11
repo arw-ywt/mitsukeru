@@ -112,5 +112,5 @@ jobs:
           cd crates/mitsukeru-wasm/pkg
           npm pack --dry-run
 
-      - name: Verify Cargo packaging (mitsukeru-core dry-run)
-        run: cargo package -p mitsukeru-core --no-verify --allow-dirty
+      - name: Verify Cargo packaging (mitsukeru dry-run)
+        run: cargo package -p mitsukeru --no-verify --allow-dirty

@@ -34,11 +34,14 @@ jobs:
       - name: Check code formatting
         run: cargo fmt --all --check
 
-      - name: Run Clippy (Pedantic checks across workspace)
-        run: cargo clippy --workspace --all-targets -- -D warnings -W clippy::pedantic
+      - name: Run Clippy (All features)
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings -W clippy::pedantic
+
+      - name: Run Clippy (Zero default dependencies)
+        run: cargo clippy -p mitsukeru --no-default-features -- -D warnings -W clippy::pedantic
 
   check-embedded:
-    name: Embedded (no_std) Verification
+    name: Embedded (no_std) & Zero-Deps Verification
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -53,7 +56,16 @@ jobs:
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
 
-      - name: Verify no_std compilation (mitsukeru)
+      - name: Assert Zero Default Dependencies
+        run: |
+          DEPS_COUNT=$(cargo tree -p mitsukeru --no-default-features --edges normal | wc -l)
+          if [ "$DEPS_COUNT" -ne 1 ]; then
+            echo "Error: mitsukeru has unexpected default dependencies!"
+            cargo tree -p mitsukeru --no-default-features --edges normal
+            exit 1
+          fi
+
+      - name: Verify no_std compilation (thumbv7em)
         run: cargo check -p mitsukeru --target thumbv7em-none-eabi --no-default-features
 
       - name: Run no_std Clippy
@@ -76,11 +88,20 @@ jobs:
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
 
-      - name: Run unit & integration tests (Debug)
-        run: cargo test --workspace
+      - name: Run zero-dep tests (Debug)
+        run: cargo test -p mitsukeru --no-default-features
+
+      - name: Run all-features tests (Debug)
+        run: cargo test --workspace --all-features
 
       - name: Run all tests (Release Mode)
-        run: cargo test --workspace --release
+        run: cargo test --workspace --all-features --release
+
+      - name: Verify JSON Schema Drift
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          cargo test --test schema_drift_test --features schemars
+          git diff --exit-code schemas/ || (echo "Error: JSON schemas are out of sync. Please run schema_drift_test and commit changes." && exit 1)
 
   build-wasm:
     name: WebAssembly & Package Verification
@@ -113,4 +134,4 @@ jobs:
           npm pack --dry-run
 
       - name: Verify Cargo packaging (mitsukeru dry-run)
-        run: cargo package -p mitsukeru --no-verify --allow-dirty
+        run: cargo package -p mitsukeru --allow-dirty

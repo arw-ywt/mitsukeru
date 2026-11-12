@@ -420,6 +420,9 @@ fn sigmoid(x: f64) -> f64 {
     }
     #[cfg(all(not(feature = "std"), not(feature = "libm")))]
     {
+        const LN2: f64 = core::f64::consts::LN_2;
+        const INV_LN2: f64 = core::f64::consts::LOG2_E;
+
         if x.is_nan() {
             return f64::NAN;
         }
@@ -435,7 +438,7 @@ fn sigmoid(x: f64) -> f64 {
         const INV_LN2: f64 = core::f64::consts::LOG2_E;
 
         let k_f = t * INV_LN2;
-        #[allow(clippy::cast_possible_truncation)]
+        #[allow(clippy::cast_possible_truncation, clippy::as_conversions)]
         let k = (if k_f >= 0.0 { k_f + 0.5 } else { k_f - 0.5 }) as i32;
 
         let r = t - f64::from(k) * LN2;

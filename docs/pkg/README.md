@@ -8,6 +8,7 @@ mitsukeru
 
 <p align="center">
   <a href="https://github.com/arw-ywt/mitsukeru/actions"><img src="https://img.shields.io/github/actions/workflow/status/arw-ywt/mitsukeru/ci.yml?branch=main&label=CI&logo=github&style=flat-square" alt="CI" /></a>
+  <img src="https://img.shields.io/badge/dependencies-0%20(default)-success?style=flat-square" alt="0 dependencies (default)" />
   <img src="https://img.shields.io/badge/no__std-supported-blue?style=flat-square" alt="no_std supported" />
   <img src="https://img.shields.io/badge/WebAssembly-supported-654FF0?logo=webassembly&logoColor=white&style=flat-square" alt="WebAssembly" />
   <img src="https://img.shields.io/badge/MSRV-1.75+-orange?logo=rust&style=flat-square" alt="MSRV" />

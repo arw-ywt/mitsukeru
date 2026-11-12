@@ -332,13 +332,18 @@ impl<'a, const W: usize> ExactSolverCore<'a, W> {
         bundle_mask.set(idx);
 
         let mut conflict_free = true;
-        for i in 0..self.sorted_items.len() {
+        for (i, conflict) in self
+            .conflicts
+            .iter()
+            .enumerate()
+            .take(self.sorted_items.len())
+        {
             if bundle_mask.has(i) {
-                if !current_mask.is_disjoint(&self.conflicts[i]) {
+                if !current_mask.is_disjoint(conflict) {
                     conflict_free = false;
                     break;
                 }
-                if !bundle_mask.is_disjoint(&self.conflicts[i]) {
+                if !bundle_mask.is_disjoint(conflict) {
                     conflict_free = false;
                     break;
                 }

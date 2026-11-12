@@ -1,6 +1,8 @@
 // tests/test_top_k.rs
 // cargo test --test test_top_k -- --nocapture
 
+#![cfg(feature = "std")]
+
 mod common;
 use common::test_a;
 use mitsukeru::{Optimizer, ProblemInput};

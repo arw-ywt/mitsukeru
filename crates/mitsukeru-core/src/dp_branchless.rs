@@ -46,6 +46,9 @@ impl Flat2dDpSolver {
             }
             let iw1 = usize::try_from(item.weights[0]).unwrap_or(0);
             let iw2 = usize::try_from(item.weights[1]).unwrap_or(0);
+            if iw1 > self.cap1 || iw2 > self.cap2 {
+                continue;
+            }
             let val = item.value;
             let history_offset = item_idx * area;
 

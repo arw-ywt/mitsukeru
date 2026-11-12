@@ -349,13 +349,16 @@ pub fn analyze_infeasibility_core(input: &ProblemInput, bnb_best_value: u32) -> 
 
 #[cfg(feature = "std")]
 pub use schemars;
+#[cfg(feature = "serde")]
 pub use serde_json;
 
+#[cfg(all(test, feature = "std"))]
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
+    #[cfg(feature = "std")]
     fn test_optimizer_high_level_api() {
         let input = ProblemInput {
             items: vec![
@@ -385,6 +388,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "std")]
     fn test_optimizer_infeasible_conflict() {
         let input = ProblemInput {
             items: vec![

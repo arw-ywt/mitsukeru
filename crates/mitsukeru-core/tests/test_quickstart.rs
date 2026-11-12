@@ -1,6 +1,8 @@
 // tests/test_quickstart.rs
 // cargo test --test test_quickstart -- --nocapture
 
+#![cfg(feature = "std")]
+
 use mitsukeru::{BusinessRule, Item, Optimizer, ProblemInput, SolverStrategy};
 
 #[test]

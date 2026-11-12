@@ -1,6 +1,7 @@
 // tests/integration_tests.rs
 // cargo test --release -- --nocapture --test-threads=1
 
+#![cfg(feature = "std")]
 mod common;
 use common::*;
 use mitsukeru::{

@@ -4,26 +4,23 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "A zero-C-dependency, deterministic, safety-critical constraint optimization engine written in 100% pure Rust."
+description = "A zero-dependency (by default), deterministic, safety-critical constraint optimization engine written in 100% pure Rust."
 keywords = ["knapsack", "optimization", "sat", "solver"]
 categories = ["algorithms", "science"]
 readme = "../../README.md"
 
 [features]
-default = ["std"]
-std = [
-    "serde/std",
-    "serde_json/std",
-    "schemars",
-    "dep:web-time",
-]
+default = []
+std = ["serde?/std", "serde_json?/std", "dep:web-time"]
+serde = ["dep:serde", "dep:serde_json"]
+schemars = ["dep:schemars", "serde", "std"]
 
 [dependencies]
-serde = { version = "1.0", default-features = false, features = ["derive", "alloc"] }
-serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
+libm = { version = "0.2", optional = true }
+serde = { version = "1.0", default-features = false, features = ["derive", "alloc"], optional = true }
+serde_json = { version = "1.0", default-features = false, features = ["alloc"], optional = true }
 schemars = { version = "0.8", optional = true }
 web-time = { version = "1.1", optional = true }
-libm = "0.2"
 
 [lints]
 workspace = true
@@ -34,3 +31,7 @@ harness = false
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
+
+[[test]]
+name = "schema_drift_test"
+required-features = ["schemars"]

@@ -4,7 +4,9 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+authors = ["arw-ywt"]
 description = "Deterministic, explainable constraint optimization engine (WebAssembly)"
+homepage = "https://arw-ywt.github.io/mitsukeru/"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
@@ -13,7 +15,7 @@ crate-type = ["cdylib", "rlib"]
 workspace = true
 
 [dependencies]
-mitsukeru = { path = "../mitsukeru-core" }
+mitsukeru = { path = "../mitsukeru-core", default-features = false, features = ["serde", "libm"] }
 wasm-bindgen = "0.2"
 serde-wasm-bindgen = "0.6"
 serde = { version = "1.0", features = ["derive"] }

@@ -18,7 +18,7 @@ mitsukeru
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square" alt="License: MIT" /></a>
 </p>
 
-A zero-C-dependency, deterministic, safety-critical constraint optimization engine written in 100% pure Rust.
+A zero-dependency (by default), deterministic, safety-critical constraint optimization engine written in 100% pure Rust.
 <br/>
 Pass items and business rules as declarative data instead of writing entangled `if/else` or `switch/case` logic. Finds mathematically optimal combinations in microseconds and automatically explains why constraints cannot be satisfied. Runs anywhere from bare-metal microcontrollers (`no_std`) and high-throughput backend services to browsers via WebAssembly.
 

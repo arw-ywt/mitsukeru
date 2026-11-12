@@ -278,7 +278,7 @@ impl GraphHeuristics {
         let mut scores = Vec::with_capacity(embeddings.len());
         for emb in embeddings {
             let logit = emb[0] * 1.8 - emb[1] * 1.2 - emb[2] * 1.2 + emb[3] * 1.5 - emb[6] * 1.0;
-            let prob_f64 = 1.0 / (1.0 + libm::exp(-logit));
+            let prob_f64 = sigmoid(logit);
             scores.push(prob_f64);
         }
         scores
@@ -405,5 +405,47 @@ impl GraphHeuristics {
         let selected_ids = (0..n).filter(|&i| selected_mask.has(i)).collect();
 
         (current_value, selected_ids)
+    }
+}
+
+#[inline]
+fn sigmoid(x: f64) -> f64 {
+    #[cfg(feature = "std")]
+    {
+        1.0 / (1.0 + (-x).exp())
+    }
+    #[cfg(all(not(feature = "std"), feature = "libm"))]
+    {
+        1.0 / (1.0 + libm::exp(-x))
+    }
+    #[cfg(all(not(feature = "std"), not(feature = "libm")))]
+    {
+        if x.is_nan() {
+            return f64::NAN;
+        }
+        let t = -x;
+        if t >= 50.0 {
+            return 0.0;
+        }
+        if t <= -50.0 {
+            return 1.0;
+        }
+
+        const LN2: f64 = core::f64::consts::LN_2;
+        const INV_LN2: f64 = core::f64::consts::LOG2_E;
+
+        let k_f = t * INV_LN2;
+        #[allow(clippy::cast_possible_truncation)]
+        let k = (if k_f >= 0.0 { k_f + 0.5 } else { k_f - 0.5 }) as i32;
+
+        let r = t - f64::from(k) * LN2;
+
+        let exp_r = 1.0
+            + r * (1.0
+                + r * (0.5 + r * (1.0 / 6.0 + r * (1.0 / 24.0 + r * (1.0 / 120.0 + r / 720.0)))));
+        let exp_bits = u64::try_from(k + 1023).unwrap_or(1023) << 52;
+        let pow2_k = f64::from_bits(exp_bits);
+
+        1.0 / (1.0 + exp_r * pow2_k)
     }
 }

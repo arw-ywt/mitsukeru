@@ -26,6 +26,7 @@ jobs:
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
+          targets: wasm32-unknown-unknown
           components: rustfmt, clippy
 
       - name: Rust Cache
@@ -34,11 +35,19 @@ jobs:
       - name: Check code formatting
         run: cargo fmt --all --check
 
-      - name: Run Clippy (Pedantic checks across workspace)
-        run: cargo clippy --workspace --all-targets -- -D warnings -W clippy::pedantic
+      - name: Run Clippy (All features)
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings -W clippy::pedantic
 
+      - name: Run Clippy (Zero default dependencies)
+        run: cargo clippy -p mitsukeru --no-default-features -- -D warnings -W clippy::pedantic
+      
+      - name: Run Clippy (std only, without schemars/serde)
+        run: cargo clippy -p mitsukeru --no-default-features --features std -- -D warnings -W clippy::pedantic
+
+      - name: Run Clippy (WASM target with crate features)
+        run: cargo clippy -p mitsukeru-wasm --target wasm32-unknown-unknown -- -D warnings -W clippy::pedantic
   check-embedded:
-    name: Embedded (no_std) Verification
+    name: Embedded (no_std) & Zero-Deps Verification
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -53,7 +62,16 @@ jobs:
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
 
-      - name: Verify no_std compilation (mitsukeru)
+      - name: Assert Zero Default Dependencies
+        run: |
+          DEPS_COUNT=$(cargo tree -p mitsukeru --no-default-features --edges normal | wc -l)
+          if [ "$DEPS_COUNT" -ne 1 ]; then
+            echo "Error: mitsukeru has unexpected default dependencies!"
+            cargo tree -p mitsukeru --no-default-features --edges normal
+            exit 1
+          fi
+
+      - name: Verify no_std compilation (thumbv7em)
         run: cargo check -p mitsukeru --target thumbv7em-none-eabi --no-default-features
 
       - name: Run no_std Clippy
@@ -76,11 +94,20 @@ jobs:
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
 
-      - name: Run unit & integration tests (Debug)
-        run: cargo test --workspace
+      - name: Run zero-dep tests (Debug)
+        run: cargo test -p mitsukeru --no-default-features
+
+      - name: Run all-features tests (Debug)
+        run: cargo test --workspace --all-features
 
       - name: Run all tests (Release Mode)
-        run: cargo test --workspace --release
+        run: cargo test --workspace --all-features --release
+
+      - name: Verify JSON Schema Drift
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          cargo test --test schema_drift_test --features schemars
+          git diff --exit-code schemas/ || (echo "Error: JSON schemas are out of sync. Please run schema_drift_test and commit changes." && exit 1)
 
   build-wasm:
     name: WebAssembly & Package Verification
@@ -95,14 +122,34 @@ jobs:
           targets: wasm32-unknown-unknown
 
       - name: Install wasm-pack
-        uses: jetli/wasm-pack-action@v0.4.0
+        uses: taiki-e/install-action@v2
         with:
-          version: 'latest'
+          tool: wasm-pack
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "20"
+      
+      - name: Smoke test WebAssembly in Node.js
+        run: |
+          wasm-pack build crates/mitsukeru-wasm --release --target nodejs --out-dir /tmp/mitsukeru-pkg-node
+          node -e '
+            const m = require("/tmp/mitsukeru-pkg-node/mitsukeru_wasm.js");
+            const res = m.optimize({
+              items: [{ id: 0, name: "A", weights: [5], value: 10 }],
+              capacities: [10],
+              rules: []
+            });
+            if (res.best_value !== 10) throw new Error("Unexpected best_value");
+            let caught = false;
+            try {
+              m.solve_branchless_dp({ items: [], capacities: [4294967295, 4294967295], rules: [] });
+            } catch (e) {
+              caught = e && e.type === "InvalidInput";
+            }
+            if (!caught) throw new Error("Expected structured InvalidInput error");
+          '
 
       - name: Build WebAssembly (bundler target)
         run: wasm-pack build crates/mitsukeru-wasm --release --target bundler
@@ -113,4 +160,4 @@ jobs:
           npm pack --dry-run
 
       - name: Verify Cargo packaging (mitsukeru dry-run)
-        run: cargo package -p mitsukeru --no-verify --allow-dirty
+        run: cargo package -p mitsukeru --allow-dirty

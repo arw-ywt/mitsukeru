@@ -74,7 +74,7 @@
         "consumed_weight": {
           "description": "Actual resource amount consumed.",
           "type": "integer",
-          "format": "uint32",
+          "format": "uint64",
           "minimum": 0.0
         },
         "dimension": {

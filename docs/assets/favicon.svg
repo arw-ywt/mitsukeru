@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 720">
+  <style>
+    .icon { fill: #0E2841; }
+    @media (prefers-color-scheme: dark) {
+      .icon { fill: #FFFFFF; }
+    }
+  </style>
+
+  <path class="icon" fill-rule="evenodd" d="
+    M360 0 A360 360 0 1 0 360 720 A360 360 0 1 0 360 0 Z
+    M360 106 A62 62 0 1 0 360 230 A62 62 0 1 0 360 106 Z
+    M257 230
+    A124 124 0 0 0 133 354
+    V538 H211 V352.5
+    A55 55 0 0 1 321 352.5
+    V538 H399 V352.5
+    A55 55 0 0 1 509 352.5
+    V538 H587 V354
+    A124 124 0 0 0 463 230
+    A124 124 0 0 0 360 284.96
+    A124 124 0 0 0 257 230 Z
+  "/>
+</svg>

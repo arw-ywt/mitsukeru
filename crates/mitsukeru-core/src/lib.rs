@@ -4,8 +4,7 @@
 #[macro_use]
 extern crate alloc;
 
-use alloc::format;
-use alloc::string::{String, ToString};
+use alloc::string::String;
 
 pub mod analyzer;
 pub mod bitset;
@@ -15,6 +14,7 @@ pub mod dp_branchless;
 pub mod heuristics;
 pub mod model;
 pub mod sat_compiler;
+pub mod validation;
 
 pub use analyzer::InfeasibilityAnalyzer;
 pub use bitset::BitSet;
@@ -26,8 +26,11 @@ pub use dp_branchless::Flat2dDpSolver;
 pub use heuristics::{GraphHeuristics, VariableDecision};
 pub use model::*;
 pub use sat_compiler::{CompilerConfig, SatCompileError, SatCompiler};
-
-pub const MAX_SUPPORTED_ITEMS: usize = 2048;
+pub use validation::{
+    DEFAULT_MAX_DP_MEMORY_BYTES, DEFAULT_MAX_SAT_CLAUSES, DEFAULT_MAX_SAT_VARS, MAX_CAPACITY_DIMS,
+    MAX_SUPPORTED_ITEMS, MAX_SUPPORTED_RULES, MAX_TOP_K, validate_optimizer_config,
+    validate_problem_input,
+};
 
 pub struct Optimizer<'a> {
     input: &'a ProblemInput,
@@ -113,12 +116,16 @@ impl<'a> Optimizer<'a> {
     /// # Errors
     ///
     /// Returns an [`OptimizeError`] in the following cases:
-    /// - If the number of items exceeds the upper limit (`MAX_SUPPORTED_ITEMS`) ([`OptimizeError::InvalidInput`]).
-    /// - If the problem is determined to be infeasible—due to circular or contradictory dependencies, capacity violations, or an inability to reach the target value ([`OptimizeError::Infeasible`]).
+    /// - If input sizes, dimensions, rules, `top_k`, `time_limit_ms`, or value sums violate supported ceilings ([`OptimizeError::InvalidInput`]).
+    /// - If `time_limit_ms` is set without an available `Clock` in `no_std` mode ([`OptimizeError::InvalidInput`]).
+    /// - If the problem is determined to be infeasible ([`OptimizeError::Infeasible`]).
     pub fn solve(&self) -> Result<Solution, OptimizeError> {
+        validate_problem_input(&self.input.items, &self.input.capacities, &self.input.rules)?;
+        validate_optimizer_config(&self.config)?;
+
         if self.config.time_limit_ms.is_some() && self.clock.is_none() {
             return Err(OptimizeError::InvalidInput {
-                message: alloc::string::String::from(
+                message: String::from(
                     "time_limit_ms was specified, but no Clock is available in this environment. In no_std mode, provide a hardware Clock via `.with_clock()` or use node limits via `.with_max_nodes()`.",
                 ),
             });
@@ -127,14 +134,6 @@ impl<'a> Optimizer<'a> {
         let start_micros = self.clock.map(Clock::now_micros);
         let item_count = self.input.items.len();
         let rule_count = self.input.rules.len();
-
-        if item_count > MAX_SUPPORTED_ITEMS {
-            return Err(OptimizeError::InvalidInput {
-                message: format!(
-                    "Item count ({item_count}) exceeds the maximum supported limit of {MAX_SUPPORTED_ITEMS} items. Please pre-filter candidates."
-                ),
-            });
-        }
 
         let (use_heuristic, strategy_used) = match self.config.strategy {
             SolverStrategy::Pure => (false, SolverStrategy::Pure),
@@ -167,7 +166,7 @@ impl<'a> Optimizer<'a> {
                 &self.input.items,
                 &self.input.capacities,
                 &self.input.rules,
-            );
+            )?;
             solver.set_initial_solution(
                 prediction.initial_best_value,
                 &prediction.initial_selected_ids,
@@ -181,7 +180,7 @@ impl<'a> Optimizer<'a> {
             solver.set_max_nodes(max_nodes);
         }
 
-        let (best_value, mut selected_ids, explored_nodes, status) = solver.solve();
+        let (best_value, mut selected_ids, explored_nodes, status) = solver.solve()?;
         selected_ids.sort_unstable();
 
         let upper_bound = solver.upper_bound();
@@ -199,7 +198,7 @@ impl<'a> Optimizer<'a> {
             self.input.target_value,
             best_value,
         );
-        let report = analyzer.analyze();
+        let report = analyzer.analyze()?;
 
         if !report.is_feasible {
             return Err(OptimizeError::Infeasible { report });
@@ -229,25 +228,19 @@ impl<'a> Optimizer<'a> {
 ///
 /// # Errors
 ///
-/// Returns an error message if there are fewer than two capacity constraints.
-pub fn solve_branchless_dp_core(input: &ProblemInput) -> Result<DpResult, String> {
+/// Returns [`OptimizeError::InvalidInput`] if fewer than 2 capacities are provided,
+/// input ceilings are violated, or the DP memory budget is exceeded.
+pub fn solve_branchless_dp_core(input: &ProblemInput) -> Result<DpResult, OptimizeError> {
     const BYTES_PER_MB: usize = 1024 * 1024;
     const BYTES_PER_MB_F64: f64 = 1024.0 * 1024.0;
 
+    validate_problem_input(&input.items, &input.capacities, &input.rules)?;
+
     if input.capacities.len() < 2 {
-        return Err("At least 2 capacities required for 2D DP".to_string());
+        return Err(OptimizeError::InvalidInput {
+            message: String::from("At least 2 capacities required for 2D DP"),
+        });
     }
-
-    let c1 = usize::try_from(input.capacities[0]).unwrap_or(0);
-    let c2 = usize::try_from(input.capacities[1]).unwrap_or(0);
-    let n = input.items.len();
-    let grid_size = (c1 + 1) * (c2 + 1);
-
-    let total_bytes =
-        (grid_size * core::mem::size_of::<u32>()) + (n * grid_size * core::mem::size_of::<u8>());
-    let mb_whole = u32::try_from(total_bytes / BYTES_PER_MB).unwrap_or(u32::MAX);
-    let mb_rem = u32::try_from(total_bytes % BYTES_PER_MB).unwrap_or(0);
-    let memory_mb = f64::from(mb_whole) + (f64::from(mb_rem) / BYTES_PER_MB_F64);
 
     #[cfg(feature = "std")]
     let clock: Option<&dyn Clock> = Some(&clock::DEFAULT_CLOCK);
@@ -256,8 +249,13 @@ pub fn solve_branchless_dp_core(input: &ProblemInput) -> Result<DpResult, String
 
     let start_micros = clock.map(Clock::now_micros);
 
-    let mut solver = Flat2dDpSolver::new(input.capacities[0], input.capacities[1]);
-    let (best_value, selected_item_ids) = solver.solve(&input.items);
+    let mut solver = Flat2dDpSolver::new(input.capacities[0], input.capacities[1])?;
+    let (best_value, selected_item_ids) = solver.solve(&input.items)?;
+    let (_, _, total_bytes) = solver.allocated_bytes();
+
+    let mb_whole = u32::try_from(total_bytes / BYTES_PER_MB).unwrap_or(u32::MAX);
+    let mb_rem = u32::try_from(total_bytes % BYTES_PER_MB).unwrap_or(0);
+    let memory_mb = f64::from(mb_whole) + (f64::from(mb_rem) / BYTES_PER_MB_F64);
 
     let execution_time_ms = if let (Some(clk), Some(start)) = (clock, start_micros) {
         clock::elapsed_ms(start, clk.now_micros())
@@ -277,7 +275,7 @@ pub fn solve_branchless_dp_core(input: &ProblemInput) -> Result<DpResult, String
 ///
 /// # Errors
 ///
-/// Returns an error if any business rule contains an out-of-bounds item ID or if variable allocation overflows.
+/// Returns [`SatCompileError`] if input/circuit limits are exceeded, a business rule contains an out-of-bounds item ID, or variable allocation overflows.
 pub fn compile_to_3sat_core(input: &ProblemInput) -> Result<SatReductionResult, SatCompileError> {
     let target_val = input.target_value.unwrap_or(0);
     let config = CompilerConfig::default();
@@ -298,8 +296,14 @@ pub fn compile_to_3sat_core(input: &ProblemInput) -> Result<SatReductionResult, 
     })
 }
 
-#[must_use]
-pub fn solve_branch_and_bound_core(input: &ProblemInput) -> BnbResult {
+/// Executes the standalone Branch-and-Bound solver with default fast limits.
+///
+/// # Errors
+///
+/// Returns [`OptimizeError::InvalidInput`] if problem bounds exceed safety ceilings.
+pub fn solve_branch_and_bound_core(input: &ProblemInput) -> Result<BnbResult, OptimizeError> {
+    validate_problem_input(&input.items, &input.capacities, &input.rules)?;
+
     #[cfg(feature = "std")]
     let clock: Option<&dyn Clock> = Some(&clock::DEFAULT_CLOCK);
     #[cfg(not(feature = "std"))]
@@ -318,7 +322,7 @@ pub fn solve_branch_and_bound_core(input: &ProblemInput) -> BnbResult {
     let max_nodes = 100_000;
     solver.set_max_nodes(max_nodes);
 
-    let (best_value, selected_item_ids, explored_nodes, status) = solver.solve();
+    let (best_value, selected_item_ids, explored_nodes, status) = solver.solve()?;
 
     let execution_time_ms = if let (Some(clk), Some(start)) = (clock, start_micros) {
         clock::elapsed_ms(start, clk.now_micros())
@@ -326,17 +330,24 @@ pub fn solve_branch_and_bound_core(input: &ProblemInput) -> BnbResult {
         0.0
     };
 
-    BnbResult {
+    Ok(BnbResult {
         best_value,
         selected_item_ids,
         execution_time_ms,
         explored_nodes,
         status,
-    }
+    })
 }
 
-#[must_use]
-pub fn analyze_infeasibility_core(input: &ProblemInput, bnb_best_value: u32) -> ConflictReport {
+/// Performs static infeasibility analysis on the problem input.
+///
+/// # Errors
+///
+/// Returns [`OptimizeError::InvalidInput`] if problem bounds exceed safety ceilings.
+pub fn analyze_infeasibility_core(
+    input: &ProblemInput,
+    bnb_best_value: u32,
+) -> Result<ConflictReport, OptimizeError> {
     let analyzer = InfeasibilityAnalyzer::new(
         &input.items,
         &input.capacities,
@@ -347,15 +358,18 @@ pub fn analyze_infeasibility_core(input: &ProblemInput, bnb_best_value: u32) -> 
     analyzer.analyze()
 }
 
-#[cfg(feature = "std")]
+#[cfg(feature = "schemars")]
 pub use schemars;
+#[cfg(feature = "serde")]
 pub use serde_json;
 
+#[cfg(all(test, feature = "std"))]
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
+    #[cfg(feature = "std")]
     fn test_optimizer_high_level_api() {
         let input = ProblemInput {
             items: vec![
@@ -385,6 +399,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "std")]
     fn test_optimizer_infeasible_conflict() {
         let input = ProblemInput {
             items: vec![
@@ -421,5 +436,40 @@ mod tests {
             assert!(!report.is_feasible);
             assert!(!report.logical_chain_conflicts.is_empty());
         }
+    }
+
+    #[test]
+    #[cfg(feature = "std")]
+    fn test_core_entrypoints_enforce_limits() {
+        let oversized_dp = ProblemInput {
+            items: vec![],
+            capacities: vec![u32::MAX, u32::MAX],
+            rules: vec![],
+            target_value: None,
+        };
+        assert!(matches!(
+            solve_branchless_dp_core(&oversized_dp),
+            Err(OptimizeError::InvalidInput { .. })
+        ));
+
+        let too_many_dims = ProblemInput {
+            items: vec![Item {
+                id: 0,
+                name: "A".into(),
+                weights: vec![1; 9],
+                value: 10,
+            }],
+            capacities: vec![10; 9],
+            rules: vec![],
+            target_value: None,
+        };
+        assert!(matches!(
+            solve_branch_and_bound_core(&too_many_dims),
+            Err(OptimizeError::InvalidInput { .. })
+        ));
+        assert!(matches!(
+            analyze_infeasibility_core(&too_many_dims, 0),
+            Err(OptimizeError::InvalidInput { .. })
+        ));
     }
 }

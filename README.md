@@ -3,14 +3,19 @@ mitsukeru
 </h1>
 
 <div align="center">
-<img src="https://raw.githubusercontent.com/arw-ywt/mitsukeru/main/assets/logo.svg" alt="mitsukeru logo" width="500" />
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/arw-ywt/mitsukeru/main/assets/logo_dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/arw-ywt/mitsukeru/main/assets/logo.svg">
+  <img alt="mitsukeru" src="logo.svg" width="500">
+</picture>
 </div>
 
 <p align="center">
   <a href="https://github.com/arw-ywt/mitsukeru/actions"><img src="https://img.shields.io/github/actions/workflow/status/arw-ywt/mitsukeru/ci.yml?branch=main&label=CI&logo=github&style=flat-square" alt="CI" /></a>
+  <img src="https://img.shields.io/badge/dependencies-0%20(default)-success?style=flat-square" alt="0 dependencies (default)" />
   <img src="https://img.shields.io/badge/no__std-supported-blue?style=flat-square" alt="no_std supported" />
   <img src="https://img.shields.io/badge/WebAssembly-supported-654FF0?logo=webassembly&logoColor=white&style=flat-square" alt="WebAssembly" />
-  <img src="https://img.shields.io/badge/MSRV-1.75+-orange?logo=rust&style=flat-square" alt="MSRV" />
+  <img src="https://img.shields.io/badge/MSRV-1.88+-orange?logo=rust&style=flat-square" alt="MSRV" />
   <br/>
   <a href="https://crates.io/crates/mitsukeru"><img src="https://img.shields.io/crates/v/mitsukeru?logo=rust&style=flat-square" alt="Crates.io Version" /></a>
   <a href="https://docs.rs/mitsukeru"><img src="https://img.shields.io/docsrs/mitsukeru?logo=docs.rs&style=flat-square" alt="Docs.rs" /></a>
@@ -18,7 +23,7 @@ mitsukeru
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square" alt="License: MIT" /></a>
 </p>
 
-A zero-C-dependency, deterministic, safety-critical constraint optimization engine written in 100% pure Rust.
+A zero-dependency (by default), deterministic, safety-critical constraint optimization engine written in 100% pure Rust.
 <br/>
 Pass items and business rules as declarative data instead of writing entangled `if/else` or `switch/case` logic. Finds mathematically optimal combinations in microseconds and automatically explains why constraints cannot be satisfied. Runs anywhere from bare-metal microcontrollers (`no_std`) and high-throughput backend services to browsers via WebAssembly.
 
@@ -43,10 +48,14 @@ Add `mitsukeru` to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-mitsukeru = "0.1"
+# Standard environments (includes OS/browser clock for time_limit_ms):
+mitsukeru = { version = "0.2", features = ["std"] }
 
-# For bare-metal / embedded microcontrollers (no_std + alloc):
-# mitsukeru = { version = "0.1", default-features = false }
+# With JSON serialization support:
+# mitsukeru = { version = "0.2", features = ["std", "serde"] }
+
+# Bare-metal / embedded microcontrollers (no_std + alloc, zero dependencies by default):
+# mitsukeru = "0.2"s
 ```
 
 ### TypeScript / JavaScript (npm)
@@ -128,6 +137,8 @@ try {
 } catch (err: any) {
   if (err.type === "Infeasible") {
     console.error("Conflict Report:", err.report);
+  } else if (err.type === "InvalidInput") {
+    console.error("Invalid Input:", err.message);
   }
 }
 ```
@@ -232,9 +243,19 @@ let solution = Optimizer::new(&input)
 
 ## When NOT to Use
 
-- Problems with more than 2048 candidate items (enforced architectural ceiling for bitset efficiency).
-- Continuous (divisible) linear programming models (e.g., fractional portfolio allocation).
-- High-dimensional constraint spaces (e.g., 10+ simultaneous capacity dimensions) where surrogate relaxation bounds become loose.
+- Continuous (divisible) linear programming models (e.g., fractional portfolio allocation). `mitsukeru` solves discrete 0-1 combinatorial problems.
+
+- Problems exceeding the enforced safety & architectural ceilings excess inputs fail fast with `OptimizeError::InvalidInput` or `SatCompileError::ResourceLimitExceeded` to prevent OOM and non-deterministic behavior:
+
+| Dimension / Resource | Enforced Limit (Default) | Constant / Config |
+| :--- | :---: | :--- |
+| Candidate items (`items.len()`) | 2,048 | `MAX_SUPPORTED_ITEMS` |
+| Capacity dimensions (`capacities.len()`) | 8 | `MAX_CAPACITY_DIMS` |
+| Business rules (`rules.len()`) | 32,768 | `MAX_SUPPORTED_RULES` |
+| Alternative candidates (`top_k`) | 256 | `MAX_TOP_K` |
+| Total item `value` sum | `u32::MAX` | Checked on input *(weights use `u64` internally)* |
+| 2D DP memory budget | 64 MiB | `DEFAULT_MAX_DP_MEMORY_BYTES` / `Flat2dDpSolver::new_with_budget` |
+| 3-SAT circuit size | 250k vars / 1M clauses | `CompilerConfig` (`DEFAULT_MAX_SAT_*`) |
 
 ## Options & Presets
 
@@ -248,9 +269,9 @@ let solution = Optimizer::new(&input)
 
 ### Fluent Methods
 - `.with_strategy(SolverStrategy::Pure | Heuristic | Mixed)` — Force exact BnB, graph heuristics, or auto-selection.
-- `.with_time_limit_ms(limit: f64)` — Set maximum execution budget in milliseconds.
+- `.with_time_limit_ms(limit: f64)` — Set maximum execution budget in milliseconds. Must be finite and `>= 0.0` (negative numbers, `NaN`, and `Infinity` result in `InvalidInput`).
 - `.with_max_nodes(nodes: u64)` — Bound explored search tree nodes (ideal for real-time systems).
-- `.with_top_k(k: usize)` — Retain top $K$ alternative feasible solutions.
+- `.with_top_k(k: usize)` — Retain top $K$ (Up to `MAX_TOP_K = 256`) alternative feasible solutions.
 - `.with_clock(&'a dyn Clock)` — Inject a custom monotonic time source.
 
 ## Benchmarks

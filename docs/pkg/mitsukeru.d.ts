@@ -6,7 +6,7 @@
  *
  * # Errors
  *
- * Returns a [`JsValue`] if the serialization or deserialization of a JS object fails.
+ * Returns a [`JsValue`] if deserialization fails or input bounds exceed safety ceilings.
  */
 export function analyze_infeasibility(input_value: any, bnb_best_value: number): any;
 
@@ -15,11 +15,8 @@ export function analyze_infeasibility(input_value: any, bnb_best_value: number):
  *
  * # Errors
  *
- * Returns a [`JsValue`] error in the following cases:
- * - If deserialization of the JavaScript input object fails.
- * - If any business rule references an invalid/out-of-bounds item index.
- * - If internal variable allocation overflows memory bounds.
- * - If serialization of the resulting CNF object into JavaScript fails.
+ * Returns a [`JsValue`] error if deserialization fails, input/circuit limits are exceeded,
+ * rule indices are out of bounds, or variable allocation overflows.
  */
 export function compile_to_3sat(input_value: any): any;
 
@@ -37,7 +34,7 @@ export function optimize(input_value: any, config_value?: any | null): any;
  *
  * # Errors
  *
- * Returns a [`JsValue`] if serialization or deserialization of a JS object fails.
+ * Returns a [`JsValue`] if deserialization fails or input bounds exceed safety ceilings.
  */
 export function predict_heuristics(input_value: any): any;
 
@@ -46,7 +43,7 @@ export function predict_heuristics(input_value: any): any;
  *
  * # Errors
  *
- * Returns a [`JsValue`] if the serialization or deserialization of a JS object fails.
+ * Returns a [`JsValue`] if deserialization fails or input bounds exceed safety ceilings.
  */
 export function solve_branch_and_bound(input_value: any): any;
 
@@ -55,7 +52,7 @@ export function solve_branch_and_bound(input_value: any): any;
  *
  * # Errors
  *
- * Returns a [`JsValue`] if an error occurs, such as a failure to deserialize a JS object or an insufficient capacity constraint.
+ * Returns a [`JsValue`] if deserialization fails, input bounds are violated, or DP memory limits are exceeded.
  */
 export function solve_branchless_dp(input_value: any): any;
 

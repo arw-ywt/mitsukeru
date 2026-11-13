@@ -4,15 +4,17 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use core::fmt;
 
-#[cfg(feature = "std")]
+#[cfg(feature = "schemars")]
 use schemars::JsonSchema;
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 /// ## Solver Optimization Strategy
 /// Execution mode controlling the search and optimization algorithm.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
-#[cfg_attr(feature = "std", derive(JsonSchema))]
-#[serde(rename_all = "snake_case")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "schemars", derive(JsonSchema))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 pub enum SolverStrategy {
     /// Automatically selects the faster strategy (`Pure` vs. `Heuristic`) based on problem size and constraint density (default).
     #[default]
@@ -26,8 +28,9 @@ pub enum SolverStrategy {
 /// ## Problem Input Configuration
 /// The root problem specification defining candidate items, resource capacities,
 /// dependency/exclusion rules, and an optional target score.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "std", derive(JsonSchema))]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "schemars", derive(JsonSchema))]
 pub struct ProblemInput {
     /// List of candidate items available for selection.
     pub items: Vec<Item>,
@@ -58,9 +61,10 @@ impl ProblemInput {
 
 /// ## Optimizer Configuration
 /// Parameters governing solver behavior, constraints, and search strategy.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "std", derive(JsonSchema))]
-#[serde(default)]
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "schemars", derive(JsonSchema))]
+#[cfg_attr(feature = "serde", serde(default))]
 pub struct OptimizerConfig {
     /// The search strategy (e.g., Pure, Heuristic, Mixed).
     pub strategy: SolverStrategy,
@@ -115,20 +119,22 @@ impl OptimizerConfig {
 
 /// ## Optimization Request (Wasm / JSON)
 /// A unified request payload encapsulating problem data and solver configuration parameters.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "std", derive(JsonSchema))]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "schemars", derive(JsonSchema))]
 pub struct OptimizeRequest {
-    #[serde(flatten)]
+    #[cfg_attr(feature = "serde", serde(flatten))]
     pub problem: ProblemInput,
-    #[serde(default)]
+    #[cfg_attr(feature = "serde", serde(default))]
     pub config: Option<OptimizerConfig>,
 }
 
 /// ## Selectable Item
 /// Represents a decision candidate with multi-dimensional resource consumption
 /// and an associated objective value.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[cfg_attr(feature = "std", derive(JsonSchema))]
+#[derive(Debug, Clone, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "schemars", derive(JsonSchema))]
 pub struct Item {
     /// Unique identifier of the item (zero-based index).
     pub id: usize,
@@ -142,9 +148,10 @@ pub struct Item {
 
 /// ## Business Rule
 /// Logical constraints specifying dependencies or mutual exclusions between items.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "std", derive(JsonSchema))]
-#[serde(tag = "type", rename_all = "snake_case")]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "schemars", derive(JsonSchema))]
+#[cfg_attr(feature = "serde", serde(tag = "type", rename_all = "snake_case"))]
 pub enum BusinessRule {
     /// ## Requirement Constraint
     /// Selecting `from_id` strictly requires selecting `to_id`.
@@ -167,9 +174,10 @@ pub enum BusinessRule {
 /// ## Solution Optimality Status
 /// Indicates whether the returned solution is proven optimal, an approximation,
 /// or bounded due to time/resource limits.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[cfg_attr(feature = "std", derive(JsonSchema))]
-#[serde(rename_all = "snake_case")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "schemars", derive(JsonSchema))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 pub enum SolutionStatus {
     /// Mathematically proven optimal solution (all branches explored and pruned).
     Optimal,
@@ -189,8 +197,9 @@ impl fmt::Display for SolutionStatus {
 
 /// ## Candidate Solution
 /// Represents an alternative feasible configuration among the top candidates.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "std", derive(JsonSchema))]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "schemars", derive(JsonSchema))]
 pub struct CandidateSolution {
     /// Achieved score/value for this candidate.
     pub value: u32,
@@ -200,8 +209,9 @@ pub struct CandidateSolution {
 
 /// ## Optimal Solution
 /// Contains the optimization result and execution statistics.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "std", derive(JsonSchema))]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "schemars", derive(JsonSchema))]
 pub struct Solution {
     /// Maximum achievable score/value under given constraints.
     pub best_value: u32,
@@ -214,10 +224,10 @@ pub struct Solution {
     /// Indicates whether the solution is mathematically optimal or an approximation.
     pub status: SolutionStatus,
     /// The actual search strategy employed during optimization (records whether `Pure` or `Heuristic` was chosen under `Mixed` mode).
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
     pub strategy_used: Option<SolverStrategy>,
     /// Optional list of top-ranked alternative solutions (Ranked 1st to K-th).
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
     pub top_candidates: Option<Vec<CandidateSolution>>,
     /// Theoretical upper bound on the objective value (Dual bound).
     pub upper_bound: f64,
@@ -227,8 +237,9 @@ pub struct Solution {
 
 /// ## Conflict Analysis Report
 /// Structured diagnostic report explaining why a problem instance is infeasible.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "std", derive(JsonSchema))]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "schemars", derive(JsonSchema))]
 pub struct ConflictReport {
     /// True if the configuration satisfies all constraints.
     pub is_feasible: bool,
@@ -242,8 +253,9 @@ pub struct ConflictReport {
 
 /// ## Logical Chain Conflict Details
 /// Identifies a conflict where a dependency chain leads to a mutually exclusive item.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "std", derive(JsonSchema))]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "schemars", derive(JsonSchema))]
 pub struct ChainConflict {
     /// The root item being evaluated.
     pub root_id: usize,
@@ -257,8 +269,9 @@ pub struct ChainConflict {
 
 /// ## Capacity Overflow Conflict Details
 /// Identifies which resource limit is exceeded and by which items.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "std", derive(JsonSchema))]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "schemars", derive(JsonSchema))]
 pub struct CapacityConflict {
     /// The root item triggering this capacity check.
     pub root_id: usize,
@@ -267,7 +280,7 @@ pub struct CapacityConflict {
     /// Maximum allowed capacity limit.
     pub capacity_limit: u32,
     /// Actual resource amount consumed.
-    pub consumed_weight: u32,
+    pub consumed_weight: u64,
     /// List of item IDs included in this bundle.
     pub bundle_ids: Vec<usize>,
     /// Human-readable explanation of the overflow.
@@ -276,8 +289,9 @@ pub struct CapacityConflict {
 
 /// ## Target Value Conflict Details
 /// Identifies when a target objective score cannot be achieved.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "std", derive(JsonSchema))]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "schemars", derive(JsonSchema))]
 pub struct TargetConflict {
     /// The requested target value.
     pub target_value: u32,
@@ -289,9 +303,10 @@ pub struct TargetConflict {
 
 /// ## Optimization Error
 /// Represents an infeasible configuration or validation failure.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "std", derive(JsonSchema))]
-#[serde(tag = "type")]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "schemars", derive(JsonSchema))]
+#[cfg_attr(feature = "serde", serde(tag = "type"))]
 pub enum OptimizeError {
     /// The problem cannot be satisfied due to conflicting constraints.
     Infeasible { report: ConflictReport },
@@ -317,8 +332,9 @@ impl core::error::Error for OptimizeError {}
 
 /// ## 2D Dynamic Programming Result
 /// Output returned by the branchless 2D DP solver.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "std", derive(JsonSchema))]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "schemars", derive(JsonSchema))]
 pub struct DpResult {
     pub best_value: u32,
     pub selected_item_ids: Vec<usize>,
@@ -328,8 +344,9 @@ pub struct DpResult {
 
 /// ## 3-SAT Reduction Result
 /// Result of compiling the combinatorial optimization problem into a DIMACS CNF representation.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "std", derive(JsonSchema))]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "schemars", derive(JsonSchema))]
 pub struct SatReductionResult {
     pub num_variables: usize,
     pub num_clauses: usize,
@@ -339,8 +356,9 @@ pub struct SatReductionResult {
 
 /// ## Branch and Bound Result
 /// Direct output returned by the standalone Branch-and-Bound solver.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "std", derive(JsonSchema))]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "schemars", derive(JsonSchema))]
 pub struct BnbResult {
     pub best_value: u32,
     pub selected_item_ids: Vec<usize>,

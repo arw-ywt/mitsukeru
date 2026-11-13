@@ -1,6 +1,8 @@
 // tests/test_f_scaling.rs
 // cargo test --test test_f_scaling --release -- --nocapture
 
+#![cfg(feature = "std")]
+
 mod common;
 use common::test_f;
 use mitsukeru::{Optimizer, ProblemInput, SolutionStatus, SolverStrategy};

@@ -6,8 +6,10 @@ use alloc::vec::Vec;
 
 use crate::bitset::BitSet;
 use crate::model::{
-    BusinessRule, CapacityConflict, ChainConflict, ConflictReport, Item, TargetConflict,
+    BusinessRule, CapacityConflict, ChainConflict, ConflictReport, Item, OptimizeError,
+    TargetConflict,
 };
+use crate::validation::{MAX_CAPACITY_DIMS, validate_problem_input};
 
 pub struct InfeasibilityAnalyzer<'a> {
     items: &'a [Item],
@@ -35,17 +37,23 @@ impl<'a> InfeasibilityAnalyzer<'a> {
         }
     }
 
-    #[must_use]
-    pub fn analyze(&self) -> ConflictReport {
+    /// Analyzes the problem instance for logical chain, capacity, and target conflicts.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`OptimizeError::InvalidInput`] if problem bounds exceed safety ceilings.
+    pub fn analyze(&self) -> Result<ConflictReport, OptimizeError> {
+        validate_problem_input(self.items, self.capacities, self.rules)?;
+
         let n = self.items.len();
         if n <= 256 {
-            self.analyze_core::<4>()
+            Ok(self.analyze_core::<4>())
         } else if n <= 512 {
-            self.analyze_core::<8>()
+            Ok(self.analyze_core::<8>())
         } else if n <= 1024 {
-            self.analyze_core::<16>()
+            Ok(self.analyze_core::<16>())
         } else {
-            self.analyze_core::<32>()
+            Ok(self.analyze_core::<32>())
         }
     }
 
@@ -190,39 +198,41 @@ impl<'a> InfeasibilityAnalyzer<'a> {
     ) -> Option<CapacityConflict> {
         let n = self.items.len();
         let num_dims = self.capacities.len();
-        let mut bundle_weights = [0u32; 8];
         let mut overflowed_dim = None;
+        let mut consumed = 0u64;
 
-        if num_dims <= 8 {
+        if num_dims <= MAX_CAPACITY_DIMS {
+            let mut bundle_weights = [0u64; MAX_CAPACITY_DIMS];
             root_closure.for_each_one(|req_id| {
                 if req_id < n {
                     let it_w = &self.items[req_id].weights;
                     for (d, w) in bundle_weights.iter_mut().enumerate().take(num_dims) {
-                        *w += it_w.get(d).copied().unwrap_or(0);
+                        *w += u64::from(it_w.get(d).copied().unwrap_or(0));
                     }
                 }
             });
 
-            for (d, w) in bundle_weights.iter().enumerate().take(num_dims) {
-                if *w > self.capacities[d] {
+            for (d, &w) in bundle_weights.iter().enumerate().take(num_dims) {
+                if w > u64::from(self.capacities[d]) {
                     overflowed_dim = Some(d);
+                    consumed = w;
                     break;
                 }
             }
         } else {
-            let mut dyn_weights = vec![0u32; num_dims];
+            let mut dyn_weights = vec![0u64; num_dims];
             root_closure.for_each_one(|req_id| {
                 if req_id < n {
                     let it_w = &self.items[req_id].weights;
                     for (d, w) in dyn_weights.iter_mut().enumerate().take(num_dims) {
-                        *w += it_w.get(d).copied().unwrap_or(0);
+                        *w += u64::from(it_w.get(d).copied().unwrap_or(0));
                     }
                 }
             });
-            for (d, w) in dyn_weights.iter().enumerate().take(num_dims) {
-                if *w > self.capacities[d] {
+            for (d, &w) in dyn_weights.iter().enumerate().take(num_dims) {
+                if w > u64::from(self.capacities[d]) {
                     overflowed_dim = Some(d);
-                    bundle_weights[0] = dyn_weights[d];
+                    consumed = w;
                     break;
                 }
             }
@@ -235,12 +245,6 @@ impl<'a> InfeasibilityAnalyzer<'a> {
                     bundle_ids.push(id);
                 }
             });
-
-            let consumed = if num_dims <= 8 {
-                bundle_weights[d]
-            } else {
-                bundle_weights[0]
-            };
 
             let msg = match bundle_ids.len() {
                 1 => format!(
@@ -329,7 +333,7 @@ mod tests {
         ];
 
         let analyzer = InfeasibilityAnalyzer::new(&items, &[50], &rules, None, 10);
-        let report = analyzer.analyze();
+        let report = analyzer.analyze().expect("analysis succeeds");
         assert!(!report.is_feasible);
         assert_eq!(report.logical_chain_conflicts.len(), 1);
 
@@ -338,5 +342,49 @@ mod tests {
         assert_eq!(conflict.conflicting_id, 2);
         assert_eq!(conflict.path_ids, vec![0, 1, 2]);
         assert!(conflict.message.contains("A -> B -> C"));
+    }
+
+    #[test]
+    fn test_analyzer_detects_u32_overflow_capacity_conflict() {
+        let items = vec![
+            Item {
+                id: 0,
+                name: "A".into(),
+                weights: vec![u32::MAX - 10],
+                value: 10,
+            },
+            Item {
+                id: 1,
+                name: "B".into(),
+                weights: vec![20],
+                value: 10,
+            },
+        ];
+        let rules = vec![BusinessRule::Requires {
+            from_id: 0,
+            to_id: 1,
+        }];
+
+        let analyzer = InfeasibilityAnalyzer::new(&items, &[u32::MAX], &rules, None, 0);
+        let report = analyzer.analyze().expect("analysis succeeds");
+        assert!(!report.is_feasible);
+        assert_eq!(report.capacity_conflicts.len(), 1);
+        assert_eq!(
+            report.capacity_conflicts[0].consumed_weight,
+            u64::from(u32::MAX) + 10
+        );
+    }
+
+    #[test]
+    fn test_analyzer_rejects_excess_dims() {
+        let items = vec![Item {
+            id: 0,
+            name: "A".into(),
+            weights: vec![1; 9],
+            value: 10,
+        }];
+        let analyzer = InfeasibilityAnalyzer::new(&items, &[10; 9], &[], None, 0);
+        let res = analyzer.analyze();
+        assert!(matches!(res, Err(OptimizeError::InvalidInput { .. })));
     }
 }

@@ -1,6 +1,6 @@
 // benches/solver_bench.rs
 
-// cargo bench --bench solver_bench -- --save-baseline initial
+// cargo bench --bench solver_bench --all-features -- --save-baseline initial
 // cargo bench --bench solver_bench -- --baseline initial
 // target/criterion/report/index.html
 
@@ -63,7 +63,7 @@ fn bench_solver_instances(c: &mut Criterion) {
         group.bench_with_input(BenchmarkId::new("Opt_Mixed", &id), &input, |b, inp| {
             b.iter(|| {
                 let optimizer = Optimizer::new(black_box(inp));
-                optimizer.solve()
+                let _ = black_box(optimizer.solve());
             });
         });
 
@@ -71,7 +71,7 @@ fn bench_solver_instances(c: &mut Criterion) {
             b.iter(|| {
                 let optimizer =
                     Optimizer::new(black_box(inp)).with_strategy(mitsukeru::SolverStrategy::Pure);
-                optimizer.solve()
+                let _ = black_box(optimizer.solve());
             });
         });
 
@@ -79,7 +79,7 @@ fn bench_solver_instances(c: &mut Criterion) {
             b.iter(|| {
                 let optimizer = Optimizer::new(black_box(inp))
                     .with_strategy(mitsukeru::SolverStrategy::Heuristic);
-                optimizer.solve()
+                let _ = black_box(optimizer.solve());
             });
         });
     }

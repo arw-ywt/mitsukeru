@@ -1,5 +1,5 @@
 // tests/schema_drift_test.rs
-
+#![cfg(feature = "schemars")]
 use mitsukeru::{OptimizeError, OptimizeRequest, ProblemInput, Solution};
 use schemars::schema_for;
 use std::fs;

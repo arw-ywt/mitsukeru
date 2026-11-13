@@ -1,6 +1,7 @@
 // tests/integration_tests.rs
 // cargo test --release -- --nocapture --test-threads=1
 
+#![cfg(feature = "std")]
 mod common;
 use common::*;
 use mitsukeru::{
@@ -93,12 +94,13 @@ impl BenchTimer {
 #[test]
 fn test_a_happy_path() {
     let p = test_a();
-    let mut dp = Flat2dDpSolver::new(p.capacities[0], p.capacities[1]);
-    let (dp_val, _) = dp.solve(&p.items);
+    let mut dp =
+        Flat2dDpSolver::new(p.capacities[0], p.capacities[1]).expect("DP init should succeed");
+    let (dp_val, _) = dp.solve(&p.items).expect("DP solve should succeed");
     assert_eq!(dp_val, 555);
 
     let mut mip = BranchAndBoundSolver::new(&p.items, &p.capacities, &p.rules);
-    let (mip_val, selected, _, _) = mip.solve();
+    let (mip_val, selected, _, _) = mip.solve().expect("BnB solve should succeed");
     assert_eq!(mip_val, 550);
     assert_eq!(selected.len(), 10);
 
@@ -121,7 +123,7 @@ fn test_a_happy_path() {
 
     let analyzer =
         InfeasibilityAnalyzer::new(&p.items, &p.capacities, &p.rules, p.target_val, mip_val);
-    let report = analyzer.analyze();
+    let report = analyzer.analyze().expect("analysis should succeed");
     assert!(report.is_feasible);
 }
 
@@ -129,14 +131,14 @@ fn test_a_happy_path() {
 fn test_b_chain_conflict_infeasibility() {
     let p = test_b();
     let mut mip = BranchAndBoundSolver::new(&p.items, &p.capacities, &p.rules);
-    let (mip_val, selected, _, _) = mip.solve();
+    let (mip_val, selected, _, _) = mip.solve().expect("BnB solve should succeed");
     assert_eq!(mip_val, 215);
     assert!(!selected.contains(&0));
     assert!(!selected.contains(&4));
 
     let analyzer =
         InfeasibilityAnalyzer::new(&p.items, &p.capacities, &p.rules, p.target_val, mip_val);
-    let report = analyzer.analyze();
+    let report = analyzer.analyze().expect("analysis should succeed");
     assert!(!report.is_feasible);
     assert_eq!(report.logical_chain_conflicts.len(), 1);
     assert_eq!(report.capacity_conflicts.len(), 1);
@@ -147,12 +149,12 @@ fn test_b_chain_conflict_infeasibility() {
 fn test_c_multi_body_conflict() {
     let p = test_c();
     let mut mip = BranchAndBoundSolver::new(&p.items, &p.capacities, &p.rules);
-    let (mip_val, _, _, _) = mip.solve();
+    let (mip_val, _, _, _) = mip.solve().expect("BnB solve should succeed");
     assert_eq!(mip_val, 150);
 
     let analyzer =
         InfeasibilityAnalyzer::new(&p.items, &p.capacities, &p.rules, p.target_val, mip_val);
-    let report = analyzer.analyze();
+    let report = analyzer.analyze().expect("analysis should succeed");
     assert!(report.logical_chain_conflicts.is_empty());
     assert!(!report.is_feasible);
 }
@@ -161,7 +163,7 @@ fn test_c_multi_body_conflict() {
 fn test_d_5000_1000() {
     let p = test_d();
     let mut mip = BranchAndBoundSolver::new(&p.items, &p.capacities, &p.rules);
-    let (mip_val, selected, _, _) = mip.solve();
+    let (mip_val, selected, _, _) = mip.solve().expect("BnB solve should succeed");
     assert_eq!(mip_val, 865);
     assert_eq!(selected.len(), 7);
 
@@ -176,7 +178,12 @@ fn test_d_5000_1000() {
 
     let analyzer =
         InfeasibilityAnalyzer::new(&p.items, &p.capacities, &p.rules, p.target_val, mip_val);
-    assert!(analyzer.analyze().is_feasible);
+    assert!(
+        analyzer
+            .analyze()
+            .expect("analysis should succeed")
+            .is_feasible
+    );
 }
 
 #[test]
@@ -192,8 +199,10 @@ fn test_stress_memory() {
 
     let cap_x = 2500;
     let cap_y = 2500;
-    let mut dp_large = Flat2dDpSolver::new(cap_x, cap_y);
-    dp_large.solve(&dummy_items);
+    let mut dp_large = Flat2dDpSolver::new(cap_x, cap_y).expect("DP init should succeed");
+    let _ = dp_large
+        .solve(&dummy_items)
+        .expect("DP solve should succeed");
     let (table_bytes, history_bytes, total_alloc_bytes) = dp_large.allocated_bytes();
 
     let grid_x = u64::from(cap_x) + 1;
@@ -239,8 +248,9 @@ fn bench_dp(sc: &ProblemInstance, grid_cells: u64, grid_w: u64, grid_h: u64) {
     println!(" DP Solver   : ");
     if grid_cells <= 1_000_000 {
         for _ in 0..WARMUP_ITERATIONS {
-            let mut dp = Flat2dDpSolver::new(sc.capacities[0], sc.capacities[1]);
-            let _ = dp.solve(&sc.items);
+            let mut dp = Flat2dDpSolver::new(sc.capacities[0], sc.capacities[1])
+                .expect("DP init should succeed");
+            let _ = dp.solve(&sc.items).expect("DP solve should succeed");
         }
 
         let mut total_ms = 0.0;
@@ -248,9 +258,10 @@ fn bench_dp(sc: &ProblemInstance, grid_cells: u64, grid_w: u64, grid_h: u64) {
         let mut mem_total_mb = 0.0;
 
         for _ in 0..BENCH_ITERATIONS {
-            let mut dp = Flat2dDpSolver::new(sc.capacities[0], sc.capacities[1]);
+            let mut dp = Flat2dDpSolver::new(sc.capacities[0], sc.capacities[1])
+                .expect("DP init should succeed");
             let timer = BenchTimer::start();
-            let (score, _) = dp.solve(&sc.items);
+            let (score, _) = dp.solve(&sc.items).expect("DP solve should succeed");
             total_ms += timer.elapsed_ms();
             dp_score = score;
             let (_, _, tot) = dp.allocated_bytes();
@@ -289,7 +300,8 @@ fn bench_pure_bnb(sc: &ProblemInstance, target_limit: f64, single_run_thresh: f6
     let mut mip = BranchAndBoundSolver::new(&sc.items, &sc.capacities, &sc.rules);
     mip.set_time_limit_ms(target_limit);
     mip.set_max_nodes(100_000);
-    let (mut mip_score, _, mut total_nodes, mut mip_status_code) = mip.solve();
+    let (mut mip_score, _, mut total_nodes, mut mip_status_code) =
+        mip.solve().expect("BnB solve should succeed");
     let first_run_ms = probe_timer.elapsed_ms();
 
     let avg_ms = if first_run_ms > single_run_thresh {
@@ -299,7 +311,7 @@ fn bench_pure_bnb(sc: &ProblemInstance, target_limit: f64, single_run_thresh: f6
             let mut mip = BranchAndBoundSolver::new(&sc.items, &sc.capacities, &sc.rules);
             mip.set_time_limit_ms(target_limit);
             mip.set_max_nodes(100_000);
-            let _ = mip.solve();
+            let _ = mip.solve().expect("BnB solve should succeed");
         }
 
         let mut total_ms = 0.0;
@@ -308,7 +320,7 @@ fn bench_pure_bnb(sc: &ProblemInstance, target_limit: f64, single_run_thresh: f6
             mip.set_time_limit_ms(target_limit);
             mip.set_max_nodes(100_000);
             let timer = BenchTimer::start();
-            let (score, _, nodes, status) = mip.solve();
+            let (score, _, nodes, status) = mip.solve().expect("BnB solve should succeed");
             total_ms += timer.elapsed_ms();
             mip_score = score;
             total_nodes = nodes;
@@ -338,7 +350,8 @@ fn bench_heuristic_bnb(sc: &ProblemInstance, target_limit: f64, single_run_thres
     println!(" Heuristic BnB    : ");
 
     let heur_probe_timer = BenchTimer::start();
-    let prediction = GraphHeuristics::predict(&sc.items, &sc.capacities, &sc.rules);
+    let prediction = GraphHeuristics::predict(&sc.items, &sc.capacities, &sc.rules)
+        .expect("heuristic prediction should succeed");
     let mut mip = BranchAndBoundSolver::new(&sc.items, &sc.capacities, &sc.rules);
     mip.set_initial_solution(
         prediction.initial_best_value,
@@ -346,7 +359,8 @@ fn bench_heuristic_bnb(sc: &ProblemInstance, target_limit: f64, single_run_thres
     );
     mip.set_time_limit_ms(target_limit);
     mip.set_max_nodes(100_000);
-    let (mut heur_score, _, mut heur_nodes, mut heur_status_code) = mip.solve();
+    let (mut heur_score, _, mut heur_nodes, mut heur_status_code) =
+        mip.solve().expect("BnB solve should succeed");
     let heur_first_run_ms = heur_probe_timer.elapsed_ms();
 
     let avg_heur_ms = if heur_first_run_ms > single_run_thresh {
@@ -355,12 +369,13 @@ fn bench_heuristic_bnb(sc: &ProblemInstance, target_limit: f64, single_run_thres
         let mut heur_total_ms = 0.0;
         for _ in 0..BENCH_ITERATIONS {
             let timer = BenchTimer::start();
-            let pred = GraphHeuristics::predict(&sc.items, &sc.capacities, &sc.rules);
+            let pred = GraphHeuristics::predict(&sc.items, &sc.capacities, &sc.rules)
+                .expect("heuristic prediction should succeed");
             let mut mip = BranchAndBoundSolver::new(&sc.items, &sc.capacities, &sc.rules);
             mip.set_initial_solution(pred.initial_best_value, &pred.initial_selected_ids);
             mip.set_time_limit_ms(target_limit);
             mip.set_max_nodes(100_000);
-            let (score, _, nodes, status) = mip.solve();
+            let (score, _, nodes, status) = mip.solve().expect("BnB solve should succeed");
             heur_total_ms += timer.elapsed_ms();
             heur_score = score;
             heur_nodes = nodes;
@@ -396,7 +411,8 @@ fn bench_mixed_auto(sc: &ProblemInstance, target_limit: f64, single_run_thresh: 
 
         let mut mip = BranchAndBoundSolver::new(&sc.items, &sc.capacities, &sc.rules);
         if use_heuristic {
-            let prediction = GraphHeuristics::predict(&sc.items, &sc.capacities, &sc.rules);
+            let prediction = GraphHeuristics::predict(&sc.items, &sc.capacities, &sc.rules)
+                .expect("heuristic prediction should succeed");
             mip.set_initial_solution(
                 prediction.initial_best_value,
                 &prediction.initial_selected_ids,
@@ -404,7 +420,7 @@ fn bench_mixed_auto(sc: &ProblemInstance, target_limit: f64, single_run_thresh: 
         }
         mip.set_time_limit_ms(target_limit);
         mip.set_max_nodes(100_000);
-        let (score, _, nodes, status) = mip.solve();
+        let (score, _, nodes, status) = mip.solve().expect("BnB solve should succeed");
         (
             score,
             nodes,
@@ -561,10 +577,12 @@ fn test_heuristic_acceleration() {
     let p = test_d();
 
     let mut baseline_solver = BranchAndBoundSolver::new(&p.items, &p.capacities, &p.rules);
-    let (base_val, _, base_nodes, base_status) = baseline_solver.solve();
+    let (base_val, _, base_nodes, base_status) =
+        baseline_solver.solve().expect("BnB solve should succeed");
     assert_eq!(base_status, SolutionStatus::Optimal);
 
-    let prediction = GraphHeuristics::predict(&p.items, &p.capacities, &p.rules);
+    let prediction = GraphHeuristics::predict(&p.items, &p.capacities, &p.rules)
+        .expect("heuristic prediction should succeed");
     let mut accelerated_solver = BranchAndBoundSolver::new(&p.items, &p.capacities, &p.rules);
 
     accelerated_solver.set_initial_solution(
@@ -572,7 +590,9 @@ fn test_heuristic_acceleration() {
         &prediction.initial_selected_ids,
     );
 
-    let (heur_val, heur_selected, heur_nodes, heur_status) = accelerated_solver.solve();
+    let (heur_val, heur_selected, heur_nodes, heur_status) = accelerated_solver
+        .solve()
+        .expect("BnB solve should succeed");
     assert_eq!(heur_status, SolutionStatus::Optimal);
 
     assert!(

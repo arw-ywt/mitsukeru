@@ -1,16 +1,16 @@
 // src/branch_and_bound.rs
 
 use alloc::collections::BTreeMap;
+use alloc::format;
 use alloc::vec;
 use alloc::vec::Vec;
 use core::cmp::{Ordering, Reverse};
 use core::mem;
 
 use crate::bitset::BitSet;
-use crate::model::CandidateSolution;
-use crate::model::{BusinessRule, Item, SolutionStatus};
-
 use crate::clock::Clock;
+use crate::model::{BusinessRule, CandidateSolution, Item, OptimizeError, SolutionStatus};
+use crate::validation::{MAX_CAPACITY_DIMS, MAX_TOP_K, validate_problem_input};
 
 #[derive(Clone, Debug)]
 struct InternalItem {
@@ -42,7 +42,8 @@ struct ExactSolverCore<'a, const W: usize> {
 
 impl<'a, const W: usize> ExactSolverCore<'a, W> {
     fn record_candidate(&mut self, val: u32, mask: BitSet<W>) {
-        if self.top_k <= 1 || val == 0 {
+        let cap_k = self.top_k.min(MAX_TOP_K);
+        if cap_k <= 1 || val == 0 {
             return;
         }
 
@@ -60,8 +61,8 @@ impl<'a, const W: usize> ExactSolverCore<'a, W> {
                 selected_item_ids: ids,
             });
             self.candidates.sort_by_key(|a| Reverse(a.value));
-            if self.candidates.len() > self.top_k {
-                self.candidates.truncate(self.top_k);
+            if self.candidates.len() > cap_k {
+                self.candidates.truncate(cap_k);
             }
         }
     }
@@ -153,8 +154,9 @@ impl<'a, const W: usize> ExactSolverCore<'a, W> {
             candidates: Vec::new(),
         };
 
-        let initial_weights = vec![0u32; capacities.len()];
-        core.root_upper_bound = core.compute_fractional_bound(0, &initial_weights, 0);
+        let num_dims = capacities.len().min(MAX_CAPACITY_DIMS);
+        let initial_weights = [0u64; MAX_CAPACITY_DIMS];
+        core.root_upper_bound = core.compute_fractional_bound(0, &initial_weights[..num_dims], 0);
         core
     }
 
@@ -171,15 +173,15 @@ impl<'a, const W: usize> ExactSolverCore<'a, W> {
     }
 
     fn solve(&mut self) -> (u32, Vec<usize>, u64, SolutionStatus) {
-        let num_dims = self.capacities.len();
-        let current_weights = vec![0u32; num_dims];
+        let num_dims = self.capacities.len().min(MAX_CAPACITY_DIMS);
+        let current_weights = [0u64; MAX_CAPACITY_DIMS];
         self.explored_nodes = 0;
         self.timed_out = false;
         if let Some(clk) = self.clock {
             self.start_micros = clk.now_micros();
         }
 
-        self.dfs(0, BitSet::<W>::new(), 0, &current_weights);
+        self.dfs(0, BitSet::<W>::new(), 0, &current_weights[..num_dims]);
 
         let mut selected_ids = Vec::new();
         for (sorted_idx, it) in self.sorted_items.iter().enumerate() {
@@ -188,7 +190,8 @@ impl<'a, const W: usize> ExactSolverCore<'a, W> {
             }
         }
 
-        if self.top_k > 1 && self.best_value > 0 {
+        let cap_k = self.top_k.min(MAX_TOP_K);
+        if cap_k > 1 && self.best_value > 0 {
             let mut best_ids = selected_ids.clone();
             best_ids.sort_unstable();
             if !self
@@ -201,8 +204,8 @@ impl<'a, const W: usize> ExactSolverCore<'a, W> {
                     selected_item_ids: best_ids,
                 });
                 self.candidates.sort_by_key(|a| Reverse(a.value));
-                if self.candidates.len() > self.top_k {
-                    self.candidates.truncate(self.top_k);
+                if self.candidates.len() > cap_k {
+                    self.candidates.truncate(cap_k);
                 }
             }
         }
@@ -238,14 +241,15 @@ impl<'a, const W: usize> ExactSolverCore<'a, W> {
     fn compute_fractional_bound(
         &self,
         start_idx: usize,
-        current_weights: &[u32],
+        current_weights: &[u64],
         current_val: u32,
     ) -> f64 {
         let mut min_remaining_ratio = 1.0f64;
         for (d, &cap) in self.capacities.iter().enumerate() {
             let used = current_weights.get(d).copied().unwrap_or(0);
             if cap > 0 {
-                let ratio = f64::from(cap.saturating_sub(used)) / f64::from(cap);
+                let rem = u32::try_from(u64::from(cap).saturating_sub(used)).unwrap_or(0);
+                let ratio = f64::from(rem) / f64::from(cap);
                 if ratio < min_remaining_ratio {
                     min_remaining_ratio = ratio;
                 }
@@ -278,7 +282,7 @@ impl<'a, const W: usize> ExactSolverCore<'a, W> {
         idx: usize,
         current_mask: BitSet<W>,
         current_val: u32,
-        current_weights: &[u32],
+        current_weights: &[u64],
     ) {
         if let Some(limit) = self.max_nodes
             && self.explored_nodes >= limit
@@ -299,9 +303,10 @@ impl<'a, const W: usize> ExactSolverCore<'a, W> {
 
         self.explored_nodes += 1;
 
-        let cutoff = if self.top_k <= 1 {
+        let cap_k = self.top_k.min(MAX_TOP_K);
+        let cutoff = if cap_k <= 1 {
             f64::from(self.best_value)
-        } else if self.candidates.len() >= self.top_k {
+        } else if self.candidates.len() >= cap_k {
             self.candidates.last().map_or(0.0, |c| f64::from(c.value))
         } else {
             0.0
@@ -317,7 +322,7 @@ impl<'a, const W: usize> ExactSolverCore<'a, W> {
                 self.best_value = current_val;
                 self.best_mask = current_mask;
             }
-            if self.top_k > 1 && current_val > 0 {
+            if cap_k > 1 && current_val > 0 {
                 self.record_candidate(current_val, current_mask);
             }
             return;
@@ -332,21 +337,26 @@ impl<'a, const W: usize> ExactSolverCore<'a, W> {
         bundle_mask.set(idx);
 
         let mut conflict_free = true;
-        for i in 0..self.sorted_items.len() {
+        for (i, conflict) in self
+            .conflicts
+            .iter()
+            .enumerate()
+            .take(self.sorted_items.len())
+        {
             if bundle_mask.has(i) {
-                if !current_mask.is_disjoint(&self.conflicts[i]) {
+                if !current_mask.is_disjoint(conflict) {
                     conflict_free = false;
                     break;
                 }
-                if !bundle_mask.is_disjoint(&self.conflicts[i]) {
+                if !bundle_mask.is_disjoint(conflict) {
                     conflict_free = false;
                     break;
                 }
             }
         }
 
-        let num_dims = self.capacities.len();
-        let mut next_weights = [0u32; 8];
+        let num_dims = self.capacities.len().min(MAX_CAPACITY_DIMS);
+        let mut next_weights = [0u64; MAX_CAPACITY_DIMS];
         let mut bundle_added_val = 0u32;
         let mut fits = conflict_free;
 
@@ -357,11 +367,11 @@ impl<'a, const W: usize> ExactSolverCore<'a, W> {
 
             for i in 0..self.sorted_items.len() {
                 if bundle_mask.has(i) && !current_mask.has(i) {
-                    bundle_added_val += self.sorted_items[i].value;
+                    bundle_added_val = bundle_added_val.saturating_add(self.sorted_items[i].value);
                     for (d, w) in next_weights.iter_mut().enumerate().take(num_dims) {
                         let item_w = self.sorted_items[i].weights.get(d).copied().unwrap_or(0);
-                        *w += item_w;
-                        if *w > self.capacities[d] {
+                        *w += u64::from(item_w);
+                        if *w > u64::from(self.capacities[d]) {
                             fits = false;
                             break;
                         }
@@ -379,7 +389,7 @@ impl<'a, const W: usize> ExactSolverCore<'a, W> {
             self.dfs(
                 idx + 1,
                 next_mask,
-                current_val + bundle_added_val,
+                current_val.saturating_add(bundle_added_val),
                 &next_weights[..num_dims],
             );
         }
@@ -445,7 +455,33 @@ impl<'a> BranchAndBoundSolver<'a> {
         self.max_nodes = Some(limit);
     }
 
-    pub fn solve(&mut self) -> (u32, Vec<usize>, u64, SolutionStatus) {
+    /// Executes the Branch-and-Bound solver after validating input ceilings.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`OptimizeError::InvalidInput`] if problem bounds, `top_k`, or `time_limit_ms` exceed safety limits.
+    pub fn solve(&mut self) -> Result<(u32, Vec<usize>, u64, SolutionStatus), OptimizeError> {
+        validate_problem_input(self.items, self.capacities, self.rules)?;
+
+        if self.top_k > MAX_TOP_K {
+            return Err(OptimizeError::InvalidInput {
+                message: format!(
+                    "top_k ({}) exceeds the maximum supported limit of {MAX_TOP_K}.",
+                    self.top_k
+                ),
+            });
+        }
+
+        if let Some(limit_ms) = self.time_limit_ms
+            && (!limit_ms.is_finite() || limit_ms < 0.0)
+        {
+            return Err(OptimizeError::InvalidInput {
+                message: format!(
+                    "time_limit_ms ({limit_ms}) must be a finite, non-negative number."
+                ),
+            });
+        }
+
         let n = self.items.len();
         let (val, selected, nodes, status) = if n <= 256 {
             self.solve_fixed::<4>()
@@ -457,12 +493,12 @@ impl<'a> BranchAndBoundSolver<'a> {
             self.solve_fixed::<32>()
         };
         self.explored_nodes = nodes;
-        (val, selected, nodes, status)
+        Ok((val, selected, nodes, status))
     }
 
     fn solve_fixed<const W: usize>(&mut self) -> (u32, Vec<usize>, u64, SolutionStatus) {
         let mut core = ExactSolverCore::<W>::new(self.items, self.capacities, self.rules);
-        core.top_k = self.top_k;
+        core.top_k = self.top_k.min(MAX_TOP_K);
         core.clock = self.clock;
         if let Some(limit) = self.time_limit_ms {
             core.time_limit_ms = Some(limit);
@@ -519,7 +555,7 @@ mod tests {
         let rules = vec![BusinessRule::Conflicts { a_id: 0, b_id: 1 }];
 
         let mut solver = BranchAndBoundSolver::new(&items, &capacities, &rules);
-        let (val, selected, _, status) = solver.solve();
+        let (val, selected, _, status) = solver.solve().expect("solve succeeds");
 
         assert_eq!(val, 60);
         assert_eq!(selected, vec![1]);
@@ -541,7 +577,7 @@ mod tests {
         let rules = vec![];
 
         let mut solver = BranchAndBoundSolver::new(&items, &capacities, &rules);
-        let (val, selected, nodes, status) = solver.solve();
+        let (val, selected, nodes, status) = solver.solve().expect("solve succeeds");
 
         assert_eq!(val, 570);
         assert_eq!(selected.len(), 3);
@@ -550,5 +586,57 @@ mod tests {
             "Explored nodes should be well under 1000, was {nodes}"
         );
         assert_eq!(status, SolutionStatus::Optimal);
+    }
+
+    #[test]
+    fn test_bnb_rejects_more_than_8_dimensions() {
+        let items = vec![Item {
+            id: 0,
+            name: "A".into(),
+            weights: vec![1; 9],
+            value: 10,
+        }];
+        let capacities = vec![10; 9];
+        let mut solver = BranchAndBoundSolver::new(&items, &capacities, &[]);
+        let res = solver.solve();
+        assert!(matches!(res, Err(OptimizeError::InvalidInput { .. })));
+    }
+
+    #[test]
+    fn test_bnb_weight_u32_overflow_does_not_bypass_capacity() {
+        let items = vec![
+            Item {
+                id: 0,
+                name: "HeavyA".into(),
+                weights: vec![u32::MAX - 10],
+                value: 100,
+            },
+            Item {
+                id: 1,
+                name: "HeavyB".into(),
+                weights: vec![20],
+                value: 50,
+            },
+        ];
+        let capacities = vec![u32::MAX];
+        let mut solver = BranchAndBoundSolver::new(&items, &capacities, &[]);
+        let (val, selected, _, _) = solver.solve().expect("solve succeeds");
+
+        assert_eq!(val, 100);
+        assert_eq!(selected, vec![0]);
+    }
+
+    #[test]
+    fn test_bnb_rejects_excess_top_k() {
+        let items = vec![Item {
+            id: 0,
+            name: "A".into(),
+            weights: vec![1],
+            value: 10,
+        }];
+        let mut solver = BranchAndBoundSolver::new(&items, &[10], &[]);
+        solver.set_top_k(MAX_TOP_K + 1);
+        let res = solver.solve();
+        assert!(matches!(res, Err(OptimizeError::InvalidInput { .. })));
     }
 }
